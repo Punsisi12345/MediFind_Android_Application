@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Shape overlay -->
+    <item android:drawable="@drawable/pharmacist_dashboard_card_backgroud_shape"/>
+
+    <item>
+        <bitmap android:src="@drawable/pharmacist_card_background"
+            android:gravity="center" />
+    </item>
+
+</layer-list>

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <group
+        android:id="@+id/side_nav_group_main"
+        android:checkableBehavior="single">
+
+        <item
+            android:id="@+id/side_nav_home"
+            android:icon="@drawable/baseline_home_24"
+            android:title="Home"
+            android:checkable="true"/>
+
+        <item
+            android:id="@+id/side_nav_map"
+            android:icon="@drawable/baseline_location_on_24"
+            android:title="Map"
+            android:checkable="true"/>
+
+        <item
+            android:id="@+id/side_nav_orders"
+            android:icon="@drawable/baseline_orders_side_24"
+            android:title="Cart"
+            android:visible="true"
+            android:checkable="true"/>
+
+        <item
+            android:id="@+id/side_nav_categories"
+            android:icon="@drawable/baseline_category_24"
+            android:title="Categories"
+            android:visible="true"
+            android:checkable="true"/>
+
+        <item
+            android:id="@+id/side_nav_medicine"
+            android:icon="@drawable/baseline_medication_24"
+            android:title="Medicines"
+            android:visible="true"
+            android:checkable="true"/>
+        <item
+            android:id="@+id/side_nav_order_history"
+            android:icon="@drawable/baseline_order_history_24"
+            android:title="Order History"
+            android:visible="true"
+            android:checkable="true"/>
+    </group>
+
+    <item android:title="Pharmacist Tools">
+        <menu>
+            <group android:checkableBehavior="single">
+                <item
+                    android:id="@+id/side_nav_manage_inventary"
+                    android:icon="@drawable/baseline_manage_inventary_24"
+                    android:title="Manage Inventory"
+                    android:visible="false"
+                    android:checkable="true"/>
+
+                <item
+                    android:id="@+id/side_nav_add_medicine"
+                    android:icon="@drawable/baseline_add_medicine_24"
+                    android:title="Add Medicine"
+                    android:visible="false"
+                    android:checkable="true"/>
+
+                <item
+                    android:id="@+id/side_nav_prescription"
+                    android:icon="@drawable/baseline_manage_prescription_24"
+                    android:title="Manage Prescriptions"
+                    android:visible="false"
+                    android:checkable="true"/>
+            </group>
+        </menu>
+    </item>
+
+    <item android:title="Account">
+        <menu>
+            <group android:checkableBehavior="single">
+                <item
+                    android:id="@+id/side_nav_profile_settings"
+                    android:icon="@drawable/baseline_profile_setting_24"
+                    android:title="Profile Settings"
+                    android:visible="true"
+                    android:checkable="true"/>
+            </group>
+
+            <group android:id="@+id/side_nav_group_auth">
+                <item
+                    android:id="@+id/side_nav_login"
+                    android:icon="@drawable/baseline_login_24"
+                    android:title="Login"
+                    android:visible="true"/>
+
+                <item
+                    android:id="@+id/side_nav_logout"
+                    android:icon="@drawable/baseline_logout_24"
+                    android:title="Log Out"
+                    android:visible="false"/>
+            </group>
+        </menu>
+    </item>
+
+</menu>

@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">mediFind Test</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="drawer_open">Open</string>
+    <string name="drawer_close">Close</string>
+    <string name="default_web_client_id">974495372870-udc9jvf4ue532cln9k5li8s1i20q76t8.apps.googleusercontent.com</string>
+</resources>

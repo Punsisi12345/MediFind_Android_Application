@@ -1,0 +1,23 @@
+# 1. SERIOUS DATA & SECURITY
+google-services.json
+local.properties
+*.jks
+*.keystore
+secrets.properties
+
+# 2. ANDROID BUILD JUNK
+/build/
+*/build/
+.gradle/
+captures/
+logs/
+
+# 3. ANDROID STUDIO SETTINGS
+.idea/
+*.iml
+*.iws
+local.settings
+
+# 4. OS GENERATED FILES
+.DS_Store
+Thumbs.db

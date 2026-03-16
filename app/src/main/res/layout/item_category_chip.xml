@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/tv_chip_name"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="8dp"
+    android:layout_marginVertical="4dp"
+    android:background="@drawable/badge_background_curved"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="8dp"
+    android:text="All"
+    android:textSize="14sp"
+    android:textStyle="bold"
+    android:textColor="@android:color/black" />

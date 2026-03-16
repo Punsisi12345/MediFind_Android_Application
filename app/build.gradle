@@ -1,0 +1,80 @@
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    id 'com.google.gms.google-services'
+}
+
+android {
+    namespace 'lk.punsisi.medifindtest'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "lk.punsisi.medifindtest"
+        minSdk 28
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        // Change these from VERSION_1_8 to VERSION_17
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures{
+        viewBinding true
+    }
+
+    kotlinOptions {
+        // Ensure this is also set to "17"
+        jvmTarget = "17"
+    }
+}
+
+dependencies {
+
+    implementation libs.lottie
+    implementation libs.core.splashscreen
+    implementation libs.appcompat
+    implementation libs.material
+
+    implementation libs.activity
+    implementation libs.constraintlayout
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+    implementation libs.dotsindicator
+
+    implementation platform('com.google.firebase:firebase-bom:34.10.0')
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-storage")
+
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
+    compileOnly libs.lombok
+    annotationProcessor libs.lombok
+    implementation 'com.github.bumptech.glide:glide:5.0.5'
+
+    def room_version = "2.6.1"
+    implementation "androidx.room:room-runtime:$room_version"
+    annotationProcessor "androidx.room:room-compiler:$room_version"
+
+    implementation("androidx.work:work-runtime:2.9.0")
+    implementation("com.google.guava:guava:32.1.2-android")
+
+    implementation 'com.github.PayHereDevs:payhere-android-sdk:v3.0.18'
+
+    implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+}
