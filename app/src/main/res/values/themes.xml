@@ -60,4 +60,12 @@
         <item name="android:textStyle">bold</item>
     </style>
 
+    <style name="BottomCurveShape">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopRight">0dp</item>
+        <item name="cornerSizeTopLeft">0dp</item>
+        <item name="cornerSizeBottomRight">30dp</item>
+        <item name="cornerSizeBottomLeft">30dp</item>
+    </style>
+
 </resources>

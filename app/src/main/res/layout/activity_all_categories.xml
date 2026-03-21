@@ -23,82 +23,24 @@
             app:navigationIconTint="@android:color/black"/>
     </com.google.android.material.appbar.AppBarLayout>
 
-    <LinearLayout
-        android:id="@+id/layout_pagination"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center"
-        android:paddingVertical="16dp"
-        android:paddingHorizontal="24dp"
-        android:background="@android:color/white"
-        android:elevation="12dp"
-        app:layout_constraintBottom_toBottomOf="parent">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_prev_page"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:insetLeft="0dp"
-            android:insetTop="0dp"
-            android:insetRight="0dp"
-            android:insetBottom="0dp"
-            android:padding="0dp"
-            app:backgroundTint="#00000000"
-            app:cornerRadius="16dp"
-            app:icon="@drawable/baseline_chevron_left_24"
-            app:iconGravity="textStart"
-            app:iconPadding="0dp"
-            app:iconTint="@color/md_theme_primary"
-            app:strokeColor="#E0E0E0"
-            app:strokeWidth="1.5dp" />
-
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center">
-
-            <TextView
-                android:id="@+id/tv_page_indicator"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/badge_background_curved"
-                android:backgroundTint="#F5F7FA"
-                android:paddingHorizontal="20dp"
-                android:paddingVertical="8dp"
-                android:text="Page 1 of 1"
-                android:textColor="@color/md_theme_primary"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_next_page"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:insetLeft="0dp"
-            android:insetTop="0dp"
-            android:insetRight="0dp"
-            android:insetBottom="0dp"
-            android:padding="0dp"
-            app:backgroundTint="#00000000"
-            app:cornerRadius="16dp"
-            app:icon="@drawable/baseline_chevron_right_24"
-            app:iconGravity="textStart"
-            app:iconPadding="0dp"
-            app:iconTint="@color/md_theme_primary"
-            app:strokeColor="#E0E0E0"
-            app:strokeWidth="1.5dp" />
-    </LinearLayout>
-
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_all_categories"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:padding="8dp"
+        android:paddingBottom="80dp"
         android:clipToPadding="false"
         app:layout_constraintTop_toBottomOf="@id/appBarLayout"
-        app:layout_constraintBottom_toTopOf="@id/layout_pagination" />
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <include
+        android:id="@+id/layout_pagination"
+        layout="@layout/layout_custom_pagination"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

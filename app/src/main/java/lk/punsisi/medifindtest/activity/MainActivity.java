@@ -188,9 +188,39 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
         unlockPharmacistToolsIfAuthorized();
 
+        generateAndSaveFCMToken();
+
+
         startSilentRoleSync();
 
     }
+
+    // Call this method inside your onViewCreated() or onCreate()
+    private void generateAndSaveFCMToken() {
+        com.google.firebase.auth.FirebaseUser currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) return;
+
+        com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
+                .addOnCompleteListener(task -> {
+                    if (!task.isSuccessful()) {
+                        android.util.Log.w("FCM", "Fetching FCM registration token failed", task.getException());
+                        return;
+                    }
+
+                    // Get new FCM registration token
+                    String token = task.getResult();
+
+                    // Save it to the users collection in Firestore
+                    com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                            .collection("users")
+                            .document(currentUser.getUid())
+                            .update("fcmToken", token)
+                            .addOnSuccessListener(aVoid -> android.util.Log.d("FCM", "Token saved successfully!"))
+                            .addOnFailureListener(e -> android.util.Log.e("FCM", "Failed to save token: " + e.getMessage()));
+                });
+    }
+
+
 
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {

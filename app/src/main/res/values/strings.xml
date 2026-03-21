@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">mediFind Test</string>
+    <string name="app_name">MediFind</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="hello_blank_fragment">Hello blank fragment</string>
     <string name="drawer_open">Open</string>

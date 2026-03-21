@@ -65,7 +65,56 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/tv_order_date" />
 
+        <TextView
+            android:id="@+id/tv_order_paid_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:text="online paid"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#D32F2F"
+            android:background="@drawable/badge_background_curved"
+            android:backgroundTint="#FFEBEE"
+            android:visibility="gone"
+            app:layout_constraintStart_toEndOf="@id/tv_order_status"
+            app:layout_constraintTop_toTopOf="@id/tv_order_status"
+            app:layout_constraintBottom_toBottomOf="@id/tv_order_status" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_pay_now"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Pay Now"
+            android:textSize="12sp"
+            app:cornerRadius="8dp"
+            android:minHeight="36dp"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_add_review"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Add Review"
+            android:textColor="#FBC02D"
+            app:strokeColor="#FBC02D"
+            android:textSize="12sp"
+            app:cornerRadius="8dp"
+            android:minHeight="36dp"
+            android:visibility="gone"
+            app:icon="@drawable/baseline_star_24"
+            app:iconTint="#FBC02D"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
         <ImageView
+            android:id="@+id/iv_arrow"
             android:layout_width="24dp"
             android:layout_height="24dp"
             android:src="@drawable/baseline_arrow_forward_ios_24"

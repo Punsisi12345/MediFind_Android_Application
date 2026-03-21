@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -15,6 +16,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.PopupMenu;
+import android.widget.RadioGroup;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
@@ -42,8 +45,12 @@ import com.github.mikephil.charting.data.PieEntry;
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter;
 import com.github.mikephil.charting.formatter.PercentFormatter;
 import com.github.mikephil.charting.utils.ColorTemplate;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.AggregateSource;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
@@ -67,7 +74,10 @@ import lk.punsisi.medifindtest.adapter.CategoryChipAdapter;
 import lk.punsisi.medifindtest.adapter.MedicineAdapter;
 import lk.punsisi.medifindtest.databinding.FragmentHomeBinding;
 import lk.punsisi.medifindtest.model.Category;
+import lk.punsisi.medifindtest.model.DeliveryAddress;
 import lk.punsisi.medifindtest.model.Medicine;
+import lk.punsisi.medifindtest.model.Order;
+import lk.punsisi.medifindtest.model.User;
 import lk.punsisi.medifindtest.room.AppDatabase;
 import lk.punsisi.medifindtest.room.CategoryDao;
 import lk.punsisi.medifindtest.room.MedicineDao;
@@ -88,6 +98,7 @@ public class HomeFragment extends Fragment {
     private CategoryDao categoryDao;
     private MedicineDao medicineDao;
     private ExecutorService executorService;
+    private FusedLocationProviderClient fusedLocationClient;
 
     // ==========================================
     // --- IN-LINE SEARCH VARIABLES ---
@@ -112,14 +123,16 @@ public class HomeFragment extends Fragment {
 
 
     //to prescription camera
-    private ActivityResultLauncher<Void> cameraLauncher;
+    private ActivityResultLauncher<String> galleryLauncher;
     private AlertDialog loadingDialog;
 
     private String currentUserRole = "user";
 
     private BarChart barChart;
     private LineChart lineChart;
-    private PieChart expiryChart,rxOtcChart;
+    private PieChart expiryChart, rxOtcChart;
+
+    private User user;
 
 
     @Override
@@ -147,6 +160,8 @@ public class HomeFragment extends Fragment {
         categoryDao = AppDatabase.getDatabase(getContext()).categoryDao();
         medicineDao = AppDatabase.getDatabase(getContext()).medicineDao();
         executorService = Executors.newSingleThreadExecutor();
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireActivity());
 
         // 2. Setup Existing Category List (Home Screen)
         recyclerViewCategories = binding.recyclerViewQuickCategories;
@@ -182,31 +197,31 @@ public class HomeFragment extends Fragment {
         });
 
 
-        // 1. Setup the Camera Launcher
-        cameraLauncher = registerForActivityResult(
-                new ActivityResultContracts.TakePicturePreview(),
-                bitmap -> {
-                    if (bitmap != null) {
-                        uploadPrescriptionToFirebase(bitmap);
+        // 👉 NEW: Gallery Picker Launcher
+        galleryLauncher = registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+                uri -> {
+                    if (uri != null) {
+                        // Pass the high-quality URI instead of a compressed Bitmap!
+                        findNearestPharmacies(uri);
                     }
                 }
         );
 
         binding.myCardDiv.setOnClickListener(v -> {
-            cameraLauncher.launch(null);
+            galleryLauncher.launch("image/*");
         });
 
         barChart = binding.topSellingChart;
-        barChartLoad();
+//        barChartLoad();
 
         lineChart = binding.salesTrendChart;
-        lineChartLoad();
+//        lineChartLoad();
 
         expiryChart = binding.expiryPieChart;
         rxOtcChart = binding.rxOtcPieChart;
 
-        setupExpiryChart(expiryChart);
-        setupRxOtcChart(rxOtcChart);
+//        setupExpiryChart(expiryChart);
+//        setupRxOtcChart(rxOtcChart);
 
 
         binding.addItemBtn.setOnClickListener(v -> {
@@ -237,9 +252,249 @@ public class HomeFragment extends Fragment {
         });
 
 
-
+        loadDashboardMetrics();
+        loadLiveChartData();
 
         return binding.getRoot();
+    }
+
+    private void loadDashboardMetrics() {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) {
+            // If nobody is logged in, just silently stop and do nothing!
+            return;
+        }
+
+        // 1. Link your layout IDs
+        TextView tvMedicineData = binding.medicineData;
+        TextView tvSalesData = binding.salesData;
+        TextView tvFeedbackData = binding.feedbackData;
+
+        // 2. Get the current logged-in Pharmacist's ID
+
+        String pharmacyId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+
+        // ==========================================
+        // 📊 METRIC 1: Total Medicines in Inventory
+        // ==========================================
+        db.collection("medicines")
+                .whereEqualTo("pharmacistId", pharmacyId)
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        Log.e("Dashboard", "Error loading medicines", error);
+                        tvMedicineData.setText("-"); // Show dash on error instead of blank
+                        return;
+                    }
+                    if (value != null) {
+                        // .size() safely counts the documents even on a bad network!
+                        tvMedicineData.setText(String.valueOf(value.size()));
+                    }
+                });
+
+        // ==========================================
+        // 📊 METRIC 2: Total Completed Sales (Orders)
+        // ==========================================
+        db.collection("orders")
+                .whereEqualTo("pharmacyId", pharmacyId)
+                .whereEqualTo("status", "Completed")
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        Log.e("Dashboard", "Error loading orders", error);
+                        tvSalesData.setText("-");
+                        return;
+                    }
+                    if (value != null) {
+                        tvSalesData.setText(String.valueOf(value.size()));
+                    }
+                });
+
+        // ==========================================
+        // 📊 METRIC 3: Total Customer Feedback
+        // ==========================================
+        db.collection("customer_feedback")
+                .whereEqualTo("pharmacyId", pharmacyId)
+                .addSnapshotListener((value, error) -> {
+                    if (error != null) {
+                        Log.e("Dashboard", "Error loading feedback", error);
+                        tvFeedbackData.setText("-");
+                        return;
+                    }
+                    if (value != null) {
+                        tvFeedbackData.setText(String.valueOf(value.size()));
+                    }
+                });
+    }
+
+    private void loadLiveChartData() {
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser == null) return;
+
+        String pharmacyId = currentUser.getUid();
+
+        db.collection("orders")
+                .whereEqualTo("pharmacyId", pharmacyId)
+                .whereEqualTo("status", "Completed")
+                .addSnapshotListener((value, error) -> {
+                    if (error != null || value == null || binding == null) {
+                        Log.e("Charts", "Error loading chart data", error);
+                        return;
+                    }
+
+                    // 1. Data Buckets
+                    float[] monthlyRevenue = new float[12]; // 12 months
+                    java.util.HashMap<String, Long> itemSales = new java.util.HashMap<>();
+                    int rxCount = 0;
+                    int otcCount = 0;
+
+                    int currentYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR);
+
+                    // 2. Loop through all completed orders
+                    for (QueryDocumentSnapshot doc : value) {
+                        Order order = doc.toObject(Order.class);
+
+                        // --- REVENUE CALCULATION (Current Year Only) ---
+                        if (order.getTimestamp() != null) {
+                            java.util.Calendar cal = java.util.Calendar.getInstance();
+                            cal.setTime(order.getTimestamp());
+
+                            if (cal.get(java.util.Calendar.YEAR) == currentYear) {
+                                int month = cal.get(java.util.Calendar.MONTH); // 0 = Jan, 11 = Dec
+                                monthlyRevenue[month] += order.getGrandTotal();
+                            }
+                        }
+
+                        // --- RX vs OTC CALCULATION ---
+                        boolean hasPrescription = order.getPrescriptionUrl() != null && !order.getPrescriptionUrl().isEmpty();
+                        boolean hasItems = order.getItems() != null && !order.getItems().isEmpty();
+
+                        if (hasPrescription) rxCount++;
+                        if (hasItems) otcCount++;
+
+                        // --- TOP SELLING ITEMS CALCULATION ---
+                        if (hasItems) {
+                            for (java.util.Map<String, Object> item : order.getItems()) {
+                                String name = (String) item.get("name");
+                                Long qty = (Long) item.get("quantity");
+                                if (name != null && qty != null) {
+                                    itemSales.put(name, itemSales.getOrDefault(name, 0L) + qty);
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Feed the data to the charts!
+                    updateMonthlyRevenueChart(monthlyRevenue);
+                    updateTopSellingChart(itemSales);
+                    updateRxOtcLiveChart(rxCount, otcCount);
+                });
+    }
+
+    private void updateMonthlyRevenueChart(float[] monthlyRevenue) {
+        ArrayList<Entry> trendData = new ArrayList<>();
+
+        // Populate the 12 months
+        for (int i = 0; i < 12; i++) {
+            trendData.add(new Entry(i, monthlyRevenue[i]));
+        }
+
+        LineDataSet dataSet = new LineDataSet(trendData, "Monthly Revenue");
+        dataSet.setColor(Color.parseColor("#00796B"));
+        dataSet.setCircleColor(Color.parseColor("#00796B"));
+        dataSet.setLineWidth(3f);
+        dataSet.setCircleRadius(4f);
+        dataSet.setDrawFilled(true);
+        dataSet.setFillColor(Color.parseColor("#BF00796B"));
+        dataSet.setDrawValues(false);
+
+        LineData lineData = new LineData(dataSet);
+        lineChart.setData(lineData);
+
+        // Update X-Axis to show Months instead of Days!
+        String[] months = new String[]{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+        XAxis xAxis = lineChart.getXAxis();
+        xAxis.setValueFormatter(new IndexAxisValueFormatter(months));
+        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xAxis.setDrawGridLines(false);
+        xAxis.setGranularity(1f);
+
+        lineChart.getDescription().setEnabled(false);
+        lineChart.getAxisRight().setEnabled(false);
+        lineChart.animateX(1000);
+        lineChart.invalidate();
+    }
+
+    private void updateTopSellingChart(java.util.HashMap<String, Long> itemSales) {
+        // 1. Sort the items to find the top sellers
+        List<java.util.Map.Entry<String, Long>> sortedItems = new ArrayList<>(itemSales.entrySet());
+        sortedItems.sort((o1, o2) -> o2.getValue().compareTo(o1.getValue())); // Descending order
+
+        ArrayList<BarEntry> salesData = new ArrayList<>();
+        ArrayList<String> itemNames = new ArrayList<>();
+
+        // 2. Get the Top 4 items (or fewer if they haven't sold 4 different items yet)
+        int limit = Math.min(sortedItems.size(), 4);
+        for (int i = 0; i < limit; i++) {
+            salesData.add(new BarEntry(i, sortedItems.get(i).getValue()));
+            itemNames.add(sortedItems.get(i).getKey());
+        }
+
+        BarDataSet dataSet = new BarDataSet(salesData, "Units Sold");
+        dataSet.setColors(ColorTemplate.MATERIAL_COLORS);
+        dataSet.setValueTextSize(10f);
+        dataSet.setValueTextColor(Color.parseColor("#757575"));
+
+        BarData barData = new BarData(dataSet);
+        barData.setBarWidth(0.5f);
+        barChart.setData(barData);
+
+        // 3. Dynamically set the X-Axis labels based on actual medicine names
+        XAxis xAxis = barChart.getXAxis();
+        xAxis.setValueFormatter(new IndexAxisValueFormatter(itemNames));
+        xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
+        xAxis.setDrawGridLines(false);
+        xAxis.setGranularity(1f);
+
+        barChart.getDescription().setEnabled(false);
+        barChart.getAxisRight().setEnabled(false);
+        barChart.getLegend().setEnabled(false);
+        barChart.animateY(1000);
+        barChart.invalidate();
+    }
+
+    private void updateRxOtcLiveChart(int rxCount, int otcCount) {
+        ArrayList<PieEntry> entries = new ArrayList<>();
+
+        // Prevent crashing if the pharmacy has exactly 0 orders
+        if (rxCount == 0 && otcCount == 0) {
+            entries.add(new PieEntry(100f, "No Sales"));
+        } else {
+            if (rxCount > 0) entries.add(new PieEntry(rxCount, "Rx"));
+            if (otcCount > 0) entries.add(new PieEntry(otcCount, "OTC"));
+        }
+
+        PieDataSet dataSet = new PieDataSet(entries, "");
+        int colorRx = Color.parseColor("#00796B");
+        int colorOtc = Color.parseColor("#8000796B");
+        dataSet.setColors(colorRx, colorOtc);
+
+        dataSet.setValueTextColor(Color.WHITE);
+        dataSet.setValueTextSize(12f);
+
+        PieData data = new PieData(dataSet);
+        data.setValueFormatter(new PercentFormatter(rxOtcChart));
+
+        rxOtcChart.setData(data);
+        rxOtcChart.getDescription().setEnabled(false);
+        rxOtcChart.getLegend().setEnabled(false);
+        rxOtcChart.setUsePercentValues(true);
+        rxOtcChart.setEntryLabelColor(Color.WHITE);
+        rxOtcChart.setEntryLabelTextSize(10f);
+        rxOtcChart.setCenterText("Sales");
+        rxOtcChart.setCenterTextSize(14f);
+        rxOtcChart.setHoleRadius(40f);
+        rxOtcChart.setTransparentCircleRadius(45f);
+        rxOtcChart.animateY(1000);
+        rxOtcChart.invalidate();
     }
 
     private void setupExpiryChart(PieChart chart) {
@@ -345,7 +600,7 @@ public class HomeFragment extends Fragment {
 
     }
 
-    private void lineChartLoad(){
+    private void lineChartLoad() {
 
         // 1. Create the data points (X = Day, Y = Sales Amount)
         ArrayList<Entry> trendData = new ArrayList<>();
@@ -712,58 +967,344 @@ public class HomeFragment extends Fragment {
     }
 
 
-    // 3. Upload to Firebase Storage and Save to Firestore
-    private void uploadPrescriptionToFirebase(android.graphics.Bitmap bitmap) {
+    // ==========================================
+    // 2. THE HOMETOWN MATCHING ENGINE
+    // ==========================================
+//    private void findNearestPharmacies(Uri imageUri) {
+//        if (loadingDialog == null) setupLoadingDialog();
+//        // Update dialog text to let the user know what's happening
+//        // (Assuming you made your TextView accessible, or just use a generic message)
+//        loadingDialog.show();
+//
+//        String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
+//        FirebaseFirestore db = FirebaseFirestore.getInstance();
+//
+//        // Step 1: Get the user's Hometown
+//        db.collection("users").document(userId).get()
+//                .addOnSuccessListener(userDoc -> {
+//                    if (userDoc.exists() && userDoc.contains("deliveryAddress.homeTown")) {
+//                        String homeTown = userDoc.getString("deliveryAddress.homeTown");
+//
+//                        user = userDoc.toObject(User.class);
+//
+//                        // Step 2: Get all Approved Pharmacies
+//                        db.collection("pharmacist_requests").whereEqualTo("status", "approved").get()
+//                                .addOnSuccessListener(querySnapshot -> {
+//
+//                                    List<com.google.firebase.firestore.DocumentSnapshot> localPharmacies = new java.util.ArrayList<>();
+//
+//                                    // Step 3: The Smart Filter
+//                                    for (com.google.firebase.firestore.DocumentSnapshot doc : querySnapshot) {
+//                                        String address = doc.getString("pharmacyAddress");
+//                                        if (address != null && homeTown != null && address.toLowerCase().contains(homeTown.toLowerCase())) {
+//                                            localPharmacies.add(doc);
+//                                        }
+//                                    }
+//
+//                                    loadingDialog.dismiss();
+//
+//                                    // Step 4: Handle the result
+//                                    if (localPharmacies.isEmpty()) {
+//                                        Toast.makeText(requireContext(), "No pharmacies found in " + homeTown, Toast.LENGTH_LONG).show();
+//                                    } else {
+//                                        showPharmacySelectionBottomSheet(imageUri, localPharmacies);
+//                                    }
+//
+//                                })
+//                                .addOnFailureListener(e -> {
+//                                    loadingDialog.dismiss();
+//                                    Toast.makeText(requireContext(), "Failed to load pharmacies.", Toast.LENGTH_SHORT).show();
+//                                });
+//
+//                    } else {
+//                        loadingDialog.dismiss();
+//                        Toast.makeText(requireContext(), "Please update your delivery address in your profile first!", Toast.LENGTH_LONG).show();
+//                    }
+//                })
+//                .addOnFailureListener(e -> {
+//                    loadingDialog.dismiss();
+//                    Toast.makeText(requireContext(), "Failed to get user data.", Toast.LENGTH_SHORT).show();
+//                });
+//    }
+
+    @SuppressWarnings("MissingPermission")
+    private void findNearestPharmacies(Uri imageUri) {
         if (loadingDialog == null) setupLoadingDialog();
-        loadingDialog.show(); // Show the modern dialog!
+        loadingDialog.show();
+
+        // 1. Check if the user has actually granted GPS permissions!
+        if (androidx.core.content.ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            loadingDialog.dismiss();
+            android.widget.Toast.makeText(requireContext(), "Please enable Location Permissions to find nearby pharmacies.", android.widget.Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        // 2. Grab the user's exact live GPS location
+        fusedLocationClient.getLastLocation().addOnSuccessListener(requireActivity(), location -> {
+            if (location != null) {
+                // We have the exact location! Now run the pharmacy math.
+                calculateDistancesFromLiveLocation(imageUri, location);
+            } else {
+                loadingDialog.dismiss();
+                android.widget.Toast.makeText(requireContext(), "Could not get current location. Please ensure your phone's GPS is turned on.", android.widget.Toast.LENGTH_LONG).show();
+            }
+        }).addOnFailureListener(e -> {
+            loadingDialog.dismiss();
+            android.widget.Toast.makeText(requireContext(), "Error getting location.", android.widget.Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    // 3. The Math Engine (Runs in the background)
+    private void calculateDistancesFromLiveLocation(Uri imageUri, android.location.Location userLocation) {
+        com.google.firebase.firestore.FirebaseFirestore db = com.google.firebase.firestore.FirebaseFirestore.getInstance();
+
+        db.collection("pharmacist_requests").whereEqualTo("status", "approved").get()
+                .addOnSuccessListener(querySnapshot -> {
+
+                    executorService.execute(() -> {
+                        java.util.List<android.util.Pair<com.google.firebase.firestore.DocumentSnapshot, Float>> localPharmacies = new java.util.ArrayList<>();
+                        android.location.Geocoder geocoder = new android.location.Geocoder(requireContext(), java.util.Locale.getDefault());
+
+                        for (com.google.firebase.firestore.DocumentSnapshot doc : querySnapshot) {
+                            String address = doc.getString("pharmacyAddress");
+
+                            if (address != null && !address.isEmpty()) {
+                                try {
+                                    // Convert Pharmacy address to Coordinates
+                                    java.util.List<android.location.Address> pharmAddresses = geocoder.getFromLocationName(address + ", Sri Lanka", 1);
+
+                                    if (pharmAddresses != null && !pharmAddresses.isEmpty()) {
+                                        android.location.Address pharmLocation = pharmAddresses.get(0);
+
+                                        // Calculate exact distance from the User's live GPS to the Pharmacy!
+                                        float[] results = new float[1];
+                                        android.location.Location.distanceBetween(
+                                                userLocation.getLatitude(), userLocation.getLongitude(),
+                                                pharmLocation.getLatitude(), pharmLocation.getLongitude(),
+                                                results
+                                        );
+
+                                        float distanceInMeters = results[0];
+
+                                        // The 15 KM Filter (15,000 meters)
+                                        if (distanceInMeters <= 10000) {
+                                            localPharmacies.add(new android.util.Pair<>(doc, distanceInMeters));
+                                        }
+                                    }
+                                } catch (java.io.IOException e) {
+                                    // Skip this specific pharmacy if the network drops momentarily
+                                    e.printStackTrace();
+                                }
+                            }
+                        }
+
+                        // Go back to the UI thread to show the results
+                        requireActivity().runOnUiThread(() -> {
+                            loadingDialog.dismiss();
+                            if (localPharmacies.isEmpty()) {
+                                android.widget.Toast.makeText(requireContext(), "No pharmacies found within 15 km of your current location.", android.widget.Toast.LENGTH_LONG).show();
+                            } else {
+                                // This method already has the sorting logic we added earlier!
+                                showPharmacySelectionBottomSheet(imageUri, localPharmacies);
+                            }
+                        });
+                    });
+                })
+                .addOnFailureListener(e -> {
+                    loadingDialog.dismiss();
+                    android.widget.Toast.makeText(requireContext(), "Failed to load pharmacies.", android.widget.Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    // ==========================================
+    // 3. SHOW BOTTOM SHEET UI
+    // ==========================================
+//    private void showPharmacySelectionBottomSheet(Uri imageUri, List<com.google.firebase.firestore.DocumentSnapshot> pharmacies) {
+//        com.google.android.material.bottomsheet.BottomSheetDialog bottomSheetDialog =
+//                new com.google.android.material.bottomsheet.BottomSheetDialog(requireContext());
+//
+//        View sheetView = LayoutInflater.from(requireContext()).inflate(R.layout.bottom_sheet_pharmacies, null);
+//        bottomSheetDialog.setContentView(sheetView);
+//
+//        RadioGroup rgDelivery = sheetView.findViewById(R.id.rg_delivery_method);
+//        android.widget.LinearLayout layoutPharmacyList = sheetView.findViewById(R.id.layout_pharmacy_list);
+//
+//        // Dynamically add a card for each matching pharmacy
+//        for (com.google.firebase.firestore.DocumentSnapshot doc : pharmacies) {
+//            View cardView = LayoutInflater.from(requireContext()).inflate(R.layout.item_pharmacy_selection, layoutPharmacyList, false);
+//
+//            android.widget.TextView tvName = cardView.findViewById(R.id.tv_pharmacy_name);
+//            android.widget.TextView tvAddress = cardView.findViewById(R.id.tv_pharmacy_address);
+//            android.widget.ImageView ivProfile = cardView.findViewById(R.id.iv_pharmacy_profile);
+//
+//            String pharmacyName = doc.getString("pharmacyName");
+//            String profileUrl = doc.getString("profileImage");
+//            String pharmacyId = doc.getString("uid"); // The pharmacist's user ID
+//
+//            tvName.setText(pharmacyName);
+//            tvAddress.setText(doc.getString("pharmacyAddress"));
+//
+//            if (profileUrl != null && !profileUrl.isEmpty()) {
+//
+//                ivProfile.setImageTintList(null);
+//
+//                com.bumptech.glide.Glide.with(requireContext())
+//                        .load(profileUrl)
+//                        .centerCrop() // Perfect circular crop
+//                        .into(ivProfile);
+//            }
+//
+//            // When user clicks a pharmacy, START THE UPLOAD
+//            cardView.setOnClickListener(v -> {
+//                // Find out what the user selected
+//                int selectedId = rgDelivery.getCheckedRadioButtonId();
+//                String deliveryMethod = "Pickup"; // Default
+//
+//                if (selectedId == R.id.rb_cod) deliveryMethod = "COD";
+//                else if (selectedId == R.id.rb_online) deliveryMethod = "Online";
+//
+//                bottomSheetDialog.dismiss();
+//
+//                // 👉 Pass this new deliveryMethod string to your upload method!
+//                uploadPrescriptionToFirebase(imageUri, pharmacyId, pharmacyName, deliveryMethod);
+//            });
+//
+//            layoutPharmacyList.addView(cardView);
+//        }
+//
+//        bottomSheetDialog.show();
+//    }
+
+    // 👉 Notice the updated List parameter!
+    private void showPharmacySelectionBottomSheet(Uri imageUri, List<android.util.Pair<com.google.firebase.firestore.DocumentSnapshot, Float>> pharmacies) {
+        com.google.android.material.bottomsheet.BottomSheetDialog bottomSheetDialog =
+                new com.google.android.material.bottomsheet.BottomSheetDialog(requireContext());
+
+        View sheetView = LayoutInflater.from(requireContext()).inflate(R.layout.bottom_sheet_pharmacies, null);
+        bottomSheetDialog.setContentView(sheetView);
+
+        android.widget.RadioGroup rgDelivery = sheetView.findViewById(R.id.rg_delivery_method);
+        android.widget.LinearLayout layoutPharmacyList = sheetView.findViewById(R.id.layout_pharmacy_list);
+
+        // 👉 Sort the list so the CLOSEST pharmacies show up at the top!
+        java.util.Collections.sort(pharmacies, (p1, p2) -> Float.compare(p1.second, p2.second));
+
+        // Dynamically add a card for each matching pharmacy
+        for (android.util.Pair<com.google.firebase.firestore.DocumentSnapshot, Float> item : pharmacies) {
+            com.google.firebase.firestore.DocumentSnapshot doc = item.first;
+            Float distanceInMeters = item.second;
+
+            View cardView = LayoutInflater.from(requireContext()).inflate(R.layout.item_pharmacy_selection, layoutPharmacyList, false);
+
+            android.widget.TextView tvName = cardView.findViewById(R.id.tv_pharmacy_name);
+            android.widget.TextView tvAddress = cardView.findViewById(R.id.tv_pharmacy_address);
+            android.widget.TextView tvDistance = cardView.findViewById(R.id.tv_pharmacy_distance); // The new Distance Text!
+            android.widget.ImageView ivProfile = cardView.findViewById(R.id.iv_pharmacy_profile);
+
+            String pharmacyName = doc.getString("pharmacyName");
+            String profileUrl = doc.getString("profileImage");
+            String pharmacyId = doc.getString("uid");
+
+            tvName.setText(pharmacyName);
+            tvAddress.setText(doc.getString("pharmacyAddress"));
+
+            // 👉 Convert meters to km and set the text
+            float distanceInKm = distanceInMeters / 1000f;
+            tvDistance.setText(String.format(java.util.Locale.getDefault(), "📍 %.1f km away", distanceInKm));
+
+            if (profileUrl != null && !profileUrl.isEmpty()) {
+                ivProfile.setImageTintList(null);
+                com.bumptech.glide.Glide.with(requireContext())
+                        .load(profileUrl)
+                        .centerCrop()
+                        .into(ivProfile);
+            }
+
+            cardView.setOnClickListener(v -> {
+                int selectedId = rgDelivery.getCheckedRadioButtonId();
+                String deliveryMethod = "Pickup";
+
+                if (selectedId == R.id.rb_cod) deliveryMethod = "COD";
+                else if (selectedId == R.id.rb_online) deliveryMethod = "Online";
+
+                bottomSheetDialog.dismiss();
+                uploadPrescriptionToFirebase(imageUri, pharmacyId, pharmacyName, deliveryMethod);
+            });
+
+            layoutPharmacyList.addView(cardView);
+        }
+
+        bottomSheetDialog.show();
+    }
+
+    // 3. Upload to Firebase Storage and Save to Firestore
+    private void uploadPrescriptionToFirebase(android.net.Uri imageUri, String pharmacyId, String pharmacyName, String deliveryMethod) {
+        if (loadingDialog == null) setupLoadingDialog();
+        loadingDialog.show();
 
         String userId = FirebaseAuth.getInstance().getCurrentUser().getUid();
         String orderId = "PRES-" + System.currentTimeMillis();
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos); // Compressed to 80% to save speed
-        byte[] data = baos.toByteArray();
-
-        StorageReference storageRef = FirebaseStorage.getInstance().getReference()
+        com.google.firebase.storage.StorageReference storageRef = com.google.firebase.storage.FirebaseStorage.getInstance().getReference()
                 .child("prescriptions/" + userId + "/" + orderId + ".jpg");
 
-        // Upload the image byte array
-        storageRef.putBytes(data)
+        // 👉 THE MAGIC: putFile() uploads the 100% original, uncompressed image!
+        storageRef.putFile(imageUri)
                 .addOnSuccessListener(taskSnapshot -> {
-                    // Get the live download URL
                     storageRef.getDownloadUrl()
                             .addOnSuccessListener(uri -> {
-                                savePrescriptionOrderToDatabase(orderId, userId, uri.toString());
+                                savePrescriptionOrderToDatabase(orderId, userId, uri.toString(), pharmacyId, pharmacyName, deliveryMethod);
                             })
                             .addOnFailureListener(e -> {
-                                loadingDialog.dismiss(); // FAILSAFE
+                                loadingDialog.dismiss();
                                 Toast.makeText(getContext(), "Failed to generate URL", Toast.LENGTH_SHORT).show();
                             });
                 })
                 .addOnFailureListener(e -> {
-                    loadingDialog.dismiss(); // FAILSAFE
+                    loadingDialog.dismiss();
                     Toast.makeText(getContext(), "Upload Blocked: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
     }
 
-    private void savePrescriptionOrderToDatabase(String orderId, String userId, String imageUrl) {
-        Map<String, Object> orderData = new HashMap<>();
-        orderData.put("orderId", orderId);
-        orderData.put("status", "Reviewing Prescription");
-        orderData.put("grandTotal", 0.0);
-        orderData.put("prescriptionUrl", imageUrl);
-        orderData.put("userId", userId);
-        orderData.put("timestamp", com.google.firebase.firestore.FieldValue.serverTimestamp());
-        orderData.put("items", new java.util.ArrayList<>());
+    private void savePrescriptionOrderToDatabase(String orderId, String userId, String imageUrl, String pharmacyId, String pharmacyName, String deliveryMethod) {
+
+        DeliveryAddress deliveryAddressData = new DeliveryAddress();
+
+        if (deliveryMethod.equals("COD")) {
+
+            if (user.getDeliveryAddress() != null) {
+                deliveryAddressData = user.getDeliveryAddress();
+            } else {
+                Toast.makeText(getContext(), "Please update your delivery address in your profile first!", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+        } else {
+            deliveryAddressData = null;
+        }
+
+        // 👉 THE UPGRADE: Using your elegant Lombok Builder!
+        Order newOrder = Order.builder()
+                .orderId(orderId)
+                .status("Pending")
+                .grandTotal(0.0)
+                .deliveryMethod(deliveryMethod)
+                .prescriptionUrl(imageUrl)
+                .userId(userId)
+                .pharmacyId(pharmacyId)
+                .pharmacyName(pharmacyName)
+                .deliveryAddress(deliveryAddressData)
+                .items(new java.util.ArrayList<>())
+                .build();
 
         FirebaseFirestore.getInstance().collection("orders").document(orderId)
-                .set(orderData)
+                .set(newOrder) // Pass the whole object directly!
                 .addOnSuccessListener(aVoid -> {
-                    loadingDialog.dismiss(); // SUCCESS -> CLOSE DIALOG
-                    Toast.makeText(getContext(), "Prescription Sent to Pharmacist!", Toast.LENGTH_LONG).show();
+                    loadingDialog.dismiss();
+                    Toast.makeText(getContext(), "Prescription Sent to " + pharmacyName + "!", Toast.LENGTH_LONG).show();
                 })
                 .addOnFailureListener(e -> {
-                    loadingDialog.dismiss(); // FAILSAFE
+                    loadingDialog.dismiss();
                     Toast.makeText(getContext(), "Database Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
     }
@@ -775,7 +1316,7 @@ public class HomeFragment extends Fragment {
 
         BottomNavigationView bottomNavigationView = requireActivity().findViewById(R.id.bottom_navigation_view);
 
-        if (bottomNavigationView != null){
+        if (bottomNavigationView != null) {
             bottomNavigationView.setVisibility(View.VISIBLE);
         }
     }

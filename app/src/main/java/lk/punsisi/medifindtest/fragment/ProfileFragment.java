@@ -23,6 +23,7 @@ import com.bumptech.glide.Glide;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.imageview.ShapeableImageView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.Firebase;
 import com.google.firebase.auth.FirebaseAuth;
@@ -49,6 +50,9 @@ public class ProfileFragment extends Fragment {
     private FirebaseStorage firebaseStorage;
     private String currentUserId;
 
+    private Uri selectedLogoUri = null;
+    private ShapeableImageView activeLogoImageView = null;
+
     private final ActivityResultLauncher<PickVisualMediaRequest> pickMedia =
             registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
                 if (uri != null) {
@@ -64,6 +68,17 @@ public class ProfileFragment extends Fragment {
                     Log.d("PhotoPicker", "No media selected");
                 }
             });
+
+    private final ActivityResultLauncher<String> imagePickerLauncher =
+            registerForActivityResult(new ActivityResultContracts.GetContent(),
+                    uri -> {
+                        if (uri != null) {
+                            selectedLogoUri = uri;
+                            if (activeLogoImageView != null) {
+                                activeLogoImageView.setImageURI(uri); // Show preview instantly
+                            }
+                        }
+                    });
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -153,7 +168,11 @@ public class ProfileFragment extends Fragment {
                         if (user != null) {
                             binding.tvProfileName.setText(user.getName());
                             binding.tvProfileEmail.setText(user.getEmail());
-                            binding.tvProfileRole.setText("Registered User");
+
+                            if (user.getRole() != null) {
+                                binding.tvProfileRole.setText(user.getRole());
+                            }
+
 
                             binding.menuDelivaryAddress.setCompoundDrawablePadding(32);
 
@@ -254,16 +273,25 @@ public class ProfileFragment extends Fragment {
     // --- PHARMACIST REQUEST LOGIC ---
     // ==========================================
     private void showPharmacistRequestBottomSheet() {
-        BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
+        // Reset the URI every time the sheet opens
+        selectedLogoUri = null;
+
+        com.google.android.material.bottomsheet.BottomSheetDialog bottomSheetDialog = new com.google.android.material.bottomsheet.BottomSheetDialog(requireContext());
         View bottomSheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_pharmacist_request, null);
         bottomSheetDialog.setContentView(bottomSheetView);
 
+        // Bind Inputs
+        activeLogoImageView = bottomSheetView.findViewById(R.id.iv_pharmacy_logo_picker);
         TextInputEditText etFullName = bottomSheetView.findViewById(R.id.et_full_name);
-        TextInputEditText etSlmcNumber = bottomSheetView.findViewById(R.id.et_slmc_number);
-        TextInputEditText etPharmacyName = bottomSheetView.findViewById(R.id.et_pharmacy_name);
-        TextInputEditText etNmraLicense = bottomSheetView.findViewById(R.id.et_nmra_license);
-        TextInputEditText etPharmacyAddress = bottomSheetView.findViewById(R.id.et_pharmacy_address);
-        MaterialButton btnSubmit = bottomSheetView.findViewById(R.id.btn_submit_request);
+        com.google.android.material.textfield.TextInputEditText etSlmcNumber = bottomSheetView.findViewById(R.id.et_slmc_number);
+        com.google.android.material.textfield.TextInputEditText etPharmacyName = bottomSheetView.findViewById(R.id.et_pharmacy_name);
+        com.google.android.material.textfield.TextInputEditText etNmraLicense = bottomSheetView.findViewById(R.id.et_nmra_license);
+        com.google.android.material.textfield.TextInputEditText etPharmacyAddress = bottomSheetView.findViewById(R.id.et_pharmacy_address);
+        com.google.android.material.textfield.TextInputEditText etTelephoneNumber = bottomSheetView.findViewById(R.id.et_telephone_number);
+        com.google.android.material.button.MaterialButton btnSubmit = bottomSheetView.findViewById(R.id.btn_submit_request);
+
+        // 👉 Open Gallery when clicking the logo placeholder
+        activeLogoImageView.setOnClickListener(v -> imagePickerLauncher.launch("image/*"));
 
         btnSubmit.setOnClickListener(v -> {
             String fullName = etFullName.getText().toString().trim();
@@ -271,47 +299,85 @@ public class ProfileFragment extends Fragment {
             String pharmacyName = etPharmacyName.getText().toString().trim();
             String nmra = etNmraLicense.getText().toString().trim();
             String address = etPharmacyAddress.getText().toString().trim();
+            String telephone = etTelephoneNumber.getText().toString().trim();
 
+
+            // 1. Validate Inputs AND Image
+            if (selectedLogoUri == null) {
+                Toast.makeText(requireContext(), "Please upload a pharmacy logo", Toast.LENGTH_SHORT).show();
+                return;
+            }
             if (fullName.isEmpty() || slmc.isEmpty() || pharmacyName.isEmpty() || nmra.isEmpty() || address.isEmpty()) {
                 Toast.makeText(requireContext(), "Please fill all fields", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            btnSubmit.setText("Submitting...");
+            btnSubmit.setText("Uploading Logo...");
             btnSubmit.setEnabled(false);
 
-            Map<String, Object> requestData = new HashMap<>();
-            requestData.put("uid", currentUserId);
-            requestData.put("fullName", fullName);
-            requestData.put("slmcRegNumber", slmc);
-            requestData.put("pharmacyName", pharmacyName);
-            requestData.put("nmraLicenseNumber", nmra);
-            requestData.put("pharmacyAddress", address);
-            requestData.put("status", "pending");
-            requestData.put("timestamp", System.currentTimeMillis());
+            // 2. Upload Image to Firebase Storage First
+            com.google.firebase.storage.StorageReference logoRef = com.google.firebase.storage.FirebaseStorage.getInstance()
+                    .getReference().child("pharmacy_logos/" + currentUserId + ".jpg");
 
-            //we pass data to two different location if one fail other also fail in this check all success or not
-            WriteBatch batch = firebaseFirestore.batch();
-
-            DocumentReference requestRef = firebaseFirestore.collection("pharmacist_requests").document(currentUserId);
-            batch.set(requestRef, requestData);
-
-            DocumentReference userRef = firebaseFirestore.collection("users").document(currentUserId);
-            batch.update(userRef, "pharmacistRequestStatus", "pending");
-
-            batch.commit()
-                            .addOnSuccessListener(unused -> {
-                                bottomSheetDialog.dismiss();
-                                showSuccessDialog();
-                            })
-                            .addOnFailureListener(e -> {
-                                btnSubmit.setText("Submit Request");
-                                btnSubmit.setEnabled(true);
-                                Toast.makeText(requireContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                            });
+            logoRef.putFile(selectedLogoUri)
+                    .addOnSuccessListener(taskSnapshot -> {
+                        // 3. Get Download URL
+                        logoRef.getDownloadUrl().addOnSuccessListener(uri -> {
+                            // 4. Proceed to save database (Pass the URL!)
+                            savePharmacistRequestToDatabase(
+                                    fullName, slmc, pharmacyName,telephone, nmra, address, uri.toString(),
+                                    bottomSheetDialog,btnSubmit
+                            );
+                        });
+                    })
+                    .addOnFailureListener(e -> {
+                        btnSubmit.setText("Submit Request");
+                        btnSubmit.setEnabled(true);
+                        Toast.makeText(requireContext(), "Image Upload Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
         });
 
         bottomSheetDialog.show();
+    }
+
+    // Extracted database logic to keep the code clean
+    private void savePharmacistRequestToDatabase(String fullName, String slmc, String pharmacyName,String telephone, String nmra,
+                                                 String address, String profileImageUrl, BottomSheetDialog dialog, MaterialButton btnSubmit) {
+
+        btnSubmit.setText("Saving Data...");
+
+        Map<String, Object> requestData = new HashMap<>();
+        requestData.put("uid", currentUserId);
+        requestData.put("fullName", fullName);
+        requestData.put("slmcRegNumber", slmc);
+        requestData.put("pharmacyName", pharmacyName);
+        requestData.put("nmraLicenseNumber", nmra);
+        requestData.put("pharmacyAddress", address);
+        requestData.put("profileImage", profileImageUrl); // 👉 Include the logo URL!
+        requestData.put("status", "pending");
+        requestData.put("telephone", telephone);
+        requestData.put("timestamp", System.currentTimeMillis());
+
+        com.google.firebase.firestore.WriteBatch batch = firebaseFirestore.batch();
+
+        // Save to 'pharmacist_requests' collection (Wait to update 'pharmacies' collection until approved)
+        com.google.firebase.firestore.DocumentReference requestRef = firebaseFirestore.collection("pharmacist_requests").document(currentUserId);
+        batch.set(requestRef, requestData);
+
+        // Update 'users' collection
+        com.google.firebase.firestore.DocumentReference userRef = firebaseFirestore.collection("users").document(currentUserId);
+        batch.update(userRef, "pharmacistRequestStatus", "pending");
+
+        batch.commit()
+                .addOnSuccessListener(unused -> {
+                    dialog.dismiss();
+                    showSuccessDialog(); // Your existing success dialog
+                })
+                .addOnFailureListener(e -> {
+                    btnSubmit.setText("Submit Request");
+                    btnSubmit.setEnabled(true);
+                    Toast.makeText(requireContext(), "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
     }
 
     private void showSuccessDialog() {
@@ -349,7 +415,7 @@ public class ProfileFragment extends Fragment {
                                 Toast.makeText(requireContext(), "Your details are currently being reviewed by an Admin.", Toast.LENGTH_SHORT).show();
                             });
 
-                        } else if ("APPROVED".equals(status)) {
+                        } else if ("approved".equals(status)) {
                             // If they are already an approved Pharmacist, hide the upgrade card completely!
                             binding.cardUpgradePharmacist.setVisibility(View.GONE);
                         }
@@ -460,6 +526,12 @@ public class ProfileFragment extends Fragment {
         bottomSheetDialog.show();
     }
 
+
+    @Override
+    public void onResume() {
+        super.onResume();
+
+    }
 
     @Override
     public void onDestroyView() {

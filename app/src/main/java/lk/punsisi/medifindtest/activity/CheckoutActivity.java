@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
+import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -40,6 +41,8 @@ import lk.payhere.androidsdk.model.InitRequest;
 import lk.payhere.androidsdk.model.StatusResponse;
 import lk.punsisi.medifindtest.R;
 import lk.punsisi.medifindtest.model.CartItem;
+import lk.punsisi.medifindtest.model.DeliveryAddress;
+import lk.punsisi.medifindtest.model.Order;
 import lk.punsisi.medifindtest.room.AppDatabase;
 
 public class CheckoutActivity extends AppCompatActivity {
@@ -52,24 +55,35 @@ public class CheckoutActivity extends AppCompatActivity {
     private double subtotal = 0.0;
     private double deliveryFee = 300.0; // Default to outside 5km
 
-    // Variables to store their default Firebase address
     private String defPhone = "", defAdd1 = "", defAdd2 = "", defCity = "", defPostal = "";
 
     private Dialog loadingDialog;
     private ExecutorService executorService;
     private String currentOrderId;
 
-    // Phase 2: Prescription Variables
     private String checkoutPrescriptionUrl = null;
     private ActivityResultLauncher<Void> cameraLauncher;
+
+    // Phase 2 Routing Variables
+    private boolean isExistingOrder = false;
+    private String existingOrderId = null;
+
+    // 👉 NEW: Temporarily holds Pharmacy ID and Name for each item during checkout
+    private final Map<String, String[]> cartPharmacyDetails = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_checkout);
 
-        // 1. Get the Subtotal passed from the Cart Fragment!
-        subtotal = getIntent().getDoubleExtra("CART_TOTAL", 0.0);
+        isExistingOrder = getIntent().getBooleanExtra("IS_EXISTING_ORDER", false);
+
+        if (isExistingOrder) {
+            subtotal = getIntent().getDoubleExtra("CART_TOTAL", 0.0);
+            existingOrderId = getIntent().getStringExtra("EXISTING_ORDER_ID");
+        } else {
+            subtotal = getIntent().getDoubleExtra("CART_TOTAL", 0.0);
+        }
 
         initViews();
         setupListeners();
@@ -77,7 +91,6 @@ public class CheckoutActivity extends AppCompatActivity {
         checkFirebaseForDefaultAddress();
         updatePricingUI();
 
-        // 2. Initialize Camera Launcher
         cameraLauncher = registerForActivityResult(
                 new ActivityResultContracts.TakePicturePreview(),
                 bitmap -> {
@@ -113,13 +126,16 @@ public class CheckoutActivity extends AppCompatActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                String cityTyped = s.toString().trim().toLowerCase();
-                if (cityTyped.equals("ragama")) {
-                    deliveryFee = 100.0; // Within 5km!
-                } else {
-                    deliveryFee = 300.0; // Outside 5km
+                // Only calculate delivery fee if this is a standard cart order
+                if (!isExistingOrder) {
+                    String cityTyped = s.toString().trim().toLowerCase();
+                    if (cityTyped.equals("ragama")) {
+                        deliveryFee = 100.0;
+                    } else {
+                        deliveryFee = 300.0;
+                    }
+                    updatePricingUI();
                 }
-                updatePricingUI();
             }
 
             @Override
@@ -144,22 +160,34 @@ public class CheckoutActivity extends AppCompatActivity {
         });
 
         btnPayNow.setOnClickListener(v -> {
+            // Note: We keep the address check because PayHere requires customer billing info to launch!
             if (etPhone.getText().toString().isEmpty() || etAddress1.getText().toString().isEmpty() || etCity.getText().toString().isEmpty()) {
-                Toast.makeText(this, "Please fill all required address fields", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Please fill all required billing address fields", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            // Start Phase 1 Validation ONLY!
-            loadingDialog.show();
-            verifyCartInventory();
+            // 👉 THE BYPASS: If existing order, skip inventory checks and go straight to payment
+            if (isExistingOrder) {
+                loadPayHereSandbox();
+            } else {
+                loadingDialog.show();
+                verifyCartInventory();
+            }
         });
     }
 
     private void updatePricingUI() {
-        double grandTotal = subtotal + deliveryFee;
-        tvSubtotal.setText(String.format("Rs. %.2f", subtotal));
-        tvDelivery.setText(String.format("Rs. %.2f", deliveryFee));
-        tvTotal.setText(String.format("Rs. %.2f", grandTotal));
+        // 👉 UI UPDATE: Hide delivery fees if the pharmacist already set the final price
+        if (isExistingOrder) {
+            tvDelivery.setVisibility(View.GONE);
+            ((View) tvDelivery.getParent()).setVisibility(View.GONE); // Hide the whole row if inside a LinearLayout
+            tvTotal.setText(String.format("Rs. %.2f", subtotal));
+        } else {
+            double grandTotal = subtotal + deliveryFee;
+            tvSubtotal.setText(String.format("Rs. %.2f", subtotal));
+            tvDelivery.setText(String.format("Rs. %.2f", deliveryFee));
+            tvTotal.setText(String.format("Rs. %.2f", grandTotal));
+        }
     }
 
     private void checkFirebaseForDefaultAddress() {
@@ -187,19 +215,9 @@ public class CheckoutActivity extends AppCompatActivity {
                             etPostal.setEnabled(false);
                         } else {
                             switchDefaultAddress.setEnabled(false);
-                            etPhone.setEnabled(true);
-                            etAddress1.setEnabled(true);
-                            etAddress2.setEnabled(true);
-                            etCity.setEnabled(true);
-                            etPostal.setEnabled(true);
                         }
                     } else {
                         switchDefaultAddress.setEnabled(false);
-                        etPhone.setEnabled(true);
-                        etAddress1.setEnabled(true);
-                        etAddress2.setEnabled(true);
-                        etCity.setEnabled(true);
-                        etPostal.setEnabled(true);
                     }
                 })
                 .addOnFailureListener(e -> {
@@ -215,13 +233,13 @@ public class CheckoutActivity extends AppCompatActivity {
         loadingDialog.setCancelable(false);
 
         TextView tvLoading = loadingDialog.findViewById(R.id.tv_dialog_text);
-        if (tvLoading != null) tvLoading.setText("Verifying Inventory...");
+        if (tvLoading != null) tvLoading.setText("Processing...");
 
         executorService = java.util.concurrent.Executors.newSingleThreadExecutor();
     }
 
     // ==========================================
-    // --- PHASE 1: INVENTORY VERIFICATION ---
+    // --- CART VERIFICATION METHODS ---
     // ==========================================
     private void verifyCartInventory() {
         executorService.execute(() -> {
@@ -251,7 +269,7 @@ public class CheckoutActivity extends AppCompatActivity {
                         boolean productIsSoftDeleted = isDeleted != null && isDeleted;
 
                         if (!doc.exists() || productIsSoftDeleted) {
-                            errorMessages.add("❌ '" + item.getName() + "' is no longer available. Please remove it from your cart.");
+                            errorMessages.add("❌ '" + item.getName() + "' is no longer available.");
                         } else {
                             Double livePrice = doc.getDouble("price");
                             Long liveStockLong = doc.getLong("quantity");
@@ -259,11 +277,16 @@ public class CheckoutActivity extends AppCompatActivity {
                             double currentLivePrice = livePrice != null ? livePrice : 0.0;
                             int currentLiveStock = liveStockLong != null ? liveStockLong.intValue() : 0;
 
+                            // 👉 NEW: Save the Pharmacy Details from the live Medicine document!
+                            String pId = doc.getString("pharmacistId");
+                            String pName = doc.getString("pharmacyName");
+                            cartPharmacyDetails.put(item.getMedicineId(), new String[]{pId, pName});
+
                             if (item.getQuantity() > currentLiveStock) {
-                                errorMessages.add("⚠️ '" + item.getName() + "': Only " + currentLiveStock + " left in stock. Please lower your quantity.");
+                                errorMessages.add("⚠️ '" + item.getName() + "': Only " + currentLiveStock + " left in stock.");
                             }
                             if (Math.abs(item.getPrice() - currentLivePrice) > 0.01) {
-                                errorMessages.add("💰 '" + item.getName() + "': Price has changed to Rs. " + currentLivePrice + ". Please Remove the current Item and add again to cart.");
+                                errorMessages.add("💰 '" + item.getName() + "': Price has changed to Rs. " + currentLivePrice + ".");
                             }
                         }
 
@@ -281,10 +304,8 @@ public class CheckoutActivity extends AppCompatActivity {
     private void evaluateVerificationResults(int current, int total, List<String> errorMessages) {
         if (current == total) {
             if (errorMessages.isEmpty()) {
-                // SUCCESS! Inventory is good. Chain directly to the Prescription Check!
                 verifyCartAndCheckout();
             } else {
-                // FAIL! Issues found.
                 loadingDialog.dismiss();
                 showCartIssuesDialog(errorMessages);
             }
@@ -301,28 +322,19 @@ public class CheckoutActivity extends AppCompatActivity {
                 .setTitle("Action Required")
                 .setMessage(errorsText.toString().trim())
                 .setIcon(R.drawable.baseline_medication_24)
-                .setPositiveButton("Go to Cart", (dialog, which) -> {
-                    finish();
-                })
+                .setPositiveButton("Go to Cart", (dialog, which) -> finish())
                 .setCancelable(false)
                 .show();
     }
 
-    // ==========================================
-    // --- PHASE 1.5: PRESCRIPTION VERIFICATION ---
-    // ==========================================
     private void verifyCartAndCheckout() {
         executorService.execute(() -> {
             AppDatabase db = AppDatabase.getDatabase(this);
-            // 👉 NEW: Get the actual list of names!
             List<String> restrictedItems = db.cartDao().getRestrictedItemNames();
 
             runOnUiThread(() -> {
                 loadingDialog.dismiss();
-
-                // If the list is not empty, we have restricted items!
                 if (!restrictedItems.isEmpty() && checkoutPrescriptionUrl == null) {
-                    // Pass the list of names into your dialog!
                     showPrescriptionRequiredDialog(restrictedItems);
                 } else {
                     loadPayHereSandbox();
@@ -332,18 +344,13 @@ public class CheckoutActivity extends AppCompatActivity {
     }
 
     private void showPrescriptionRequiredDialog(List<String> restrictedItems) {
-        // Combine the names neatly: "Panadol, Amoxicillin"
         String itemNames = android.text.TextUtils.join(", ", restrictedItems);
-
-        // Inject the names directly into the message!
-        String dynamicMessage = "Your cart contains restricted medicines: " + itemNames + ".\n\n require a valid doctor's prescription to dispense these items.\n\nPlease upload a photo of your prescription to continue.";
+        String dynamicMessage = "Your cart contains restricted medicines: " + itemNames + ".\n\nA valid doctor's prescription is required. Please upload a photo to continue.";
 
         new MaterialAlertDialogBuilder(this)
                 .setTitle("Prescription Required \u26A0\uFE0F")
                 .setMessage(dynamicMessage)
-                .setPositiveButton("Take Photo", (dialog, which) -> {
-                    cameraLauncher.launch(null);
-                })
+                .setPositiveButton("Take Photo", (dialog, which) -> cameraLauncher.launch(null))
                 .setNegativeButton("Cancel", null)
                 .setCancelable(false)
                 .show();
@@ -379,7 +386,7 @@ public class CheckoutActivity extends AppCompatActivity {
     }
 
     // ==========================================
-    // --- PHASE 2: PAYHERE INTEGRATION ---
+    // --- PAYHERE INTEGRATION ---
     // ==========================================
     private void loadPayHereSandbox() {
         InitRequest req = new InitRequest();
@@ -388,10 +395,12 @@ public class CheckoutActivity extends AppCompatActivity {
         req.setMerchantSecret("MTM0NjY5MTI3NzE5NzQ2NzEyNDgxMDM2MjU4NzMyMjE4NjMzMDgw");
         req.setCurrency("LKR");
 
-        double grandTotal = subtotal + deliveryFee;
-        req.setAmount(grandTotal);
+        // 👉 DYNAMIC AMOUNT: Use the correct total based on order type
+        double finalAmount = isExistingOrder ? subtotal : (subtotal + deliveryFee);
+        req.setAmount(finalAmount);
 
-        currentOrderId = "ORDER-" + System.currentTimeMillis();
+        // 👉 DYNAMIC ORDER ID
+        currentOrderId = isExistingOrder ? existingOrderId : ("ORDER-" + System.currentTimeMillis());
         req.setOrderId(currentOrderId);
         req.setItemsDescription("MediFind Pharmacy Order");
 
@@ -410,9 +419,6 @@ public class CheckoutActivity extends AppCompatActivity {
         payHereLauncher.launch(intent);
     }
 
-    // ==========================================
-    // --- PAYHERE RESULT LISTENER ---
-    // ==========================================
     private final ActivityResultLauncher<Intent> payHereLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() == RESULT_OK && result.getData() != null) {
@@ -423,19 +429,61 @@ public class CheckoutActivity extends AppCompatActivity {
 
                         if (response.isSuccess()) {
                             Toast.makeText(this, "Payment Successful!", Toast.LENGTH_LONG).show();
-                            processSuccessfulOrder(currentOrderId);
+
+                            // 👉 THE SPLIT: Route the success data to the correct database method
+                            if (isExistingOrder) {
+                                processExistingOrderPayment(currentOrderId);
+                            } else {
+                                processSuccessfulOrder(currentOrderId);
+                            }
                         } else {
                             Toast.makeText(this, "Payment Failed: " + response.toString(), Toast.LENGTH_LONG).show();
                         }
                     }
                 } else if (result.getResultCode() == RESULT_CANCELED) {
-                    Toast.makeText(this, "Payment Canceled by User", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Payment Canceled", Toast.LENGTH_SHORT).show();
                 }
             });
 
     // ==========================================
-    // --- PHASE 3: PROCESS SUCCESSFUL ORDER ---
+    // --- DATABASE UPDATERS ---
     // ==========================================
+
+    // 👉 NEW: Handles updating the existing prescription order
+    private void processExistingOrderPayment(String orderId) {
+        if (loadingDialog != null) {
+            loadingDialog.show();
+            TextView tvLoading = loadingDialog.findViewById(R.id.tv_dialog_text);
+            if (tvLoading != null) tvLoading.setText("Updating Order...");
+        }
+
+        DeliveryAddress deliveryAddress = DeliveryAddress.builder()
+                .phoneNumber(etPhone.getText().toString())
+                .addressLine1(etAddress1.getText().toString())
+                .addressLine2(etAddress2.getText().toString())
+                .homeTown(etCity.getText().toString())
+                .postalCode(etPostal.getText().toString())
+                .build();
+
+        FirebaseFirestore.getInstance().collection("orders").document(orderId)
+                .update(
+                        "paid", true,
+                        "deliveryAddress", deliveryAddress
+                )
+                .addOnSuccessListener(aVoid -> {
+                    if (loadingDialog != null) loadingDialog.dismiss();
+                    Intent successIntent = new Intent(CheckoutActivity.this, OrderSuccessActivity.class);
+                    successIntent.putExtra("FINAL_ORDER_ID", orderId);
+                    startActivity(successIntent);
+                    finish();
+                })
+                .addOnFailureListener(e -> {
+                    if (loadingDialog != null) loadingDialog.dismiss();
+                    Toast.makeText(this, "Payment succeeded, but update failed. Contact support.", Toast.LENGTH_LONG).show();
+                });
+    }
+
+    // ORIGINAL: Handles creating a brand new cart order
     private void processSuccessfulOrder(String orderId) {
         loadingDialog.show();
         TextView tvLoading = loadingDialog.findViewById(R.id.tv_dialog_text);
@@ -449,29 +497,47 @@ public class CheckoutActivity extends AppCompatActivity {
             AppDatabase db = AppDatabase.getDatabase(this);
             List<CartItem> finalItems = db.cartDao().getActiveCartItems();
 
-            Map<String, Object> orderData = new HashMap<>();
-            orderData.put("orderId", orderId);
-            orderData.put("userId", userId);
-            orderData.put("status", "Pending");
-            orderData.put("timestamp", FieldValue.serverTimestamp());
+            // 👉 1. THE PHARMACY MATCHING ENGINE (Using the fetched Map)
+            String commonPharmacyId = null;
+            String commonPharmacyName = null;
+            boolean isSinglePharmacy = true;
 
-            orderData.put("subtotal", subtotal);
-            orderData.put("deliveryFee", deliveryFee);
-            orderData.put("grandTotal", subtotal + deliveryFee);
-            orderData.put("paymentMethod", "PayHere");
+            if (!finalItems.isEmpty()) {
+                // Get the first item's details from our Map
+                String firstMedId = finalItems.get(0).getMedicineId();
+                if (cartPharmacyDetails.containsKey(firstMedId)) {
+                    commonPharmacyId = cartPharmacyDetails.get(firstMedId)[0];
+                    commonPharmacyName = cartPharmacyDetails.get(firstMedId)[1];
+                }
 
-            // 👉 SAVES THE UPLOADED URL! (Will be null if no prescription was needed)
-            orderData.put("prescriptionUrl", checkoutPrescriptionUrl);
+                // Loop through to check if any other items belong to a different pharmacy
+                for (CartItem item : finalItems) {
+                    String[] details = cartPharmacyDetails.get(item.getMedicineId());
+                    String currentPId = details != null ? details[0] : null;
 
-            Map<String, String> addressMap = new HashMap<>();
-            addressMap.put("phone", etPhone.getText().toString());
-            addressMap.put("address1", etAddress1.getText().toString());
-            addressMap.put("address2", etAddress2.getText().toString());
-            addressMap.put("city", etCity.getText().toString());
-            addressMap.put("postal", etPostal.getText().toString());
-            orderData.put("shippingAddress", addressMap);
+                    if (currentPId == null || !currentPId.equals(commonPharmacyId)) {
+                        isSinglePharmacy = false;
+                        break; // Mismatch found! Stop looking.
+                    }
+                }
+            }
 
-            java.util.List<Map<String, Object>> itemsList = new ArrayList<>();
+            // If it's a mixed cart, wipe out the variables so it becomes a global order
+            if (!isSinglePharmacy) {
+                commonPharmacyId = null;
+                commonPharmacyName = null;
+            }
+
+            DeliveryAddress deliveryAddress = DeliveryAddress.builder()
+                    .phoneNumber(etPhone.getText().toString())
+                    .addressLine1(etAddress1.getText().toString())
+                    .addressLine2(etAddress2.getText().toString())
+                    .homeTown(etCity.getText().toString())
+                    .postalCode(etPostal.getText().toString())
+                    .build();
+
+            // 👉 3. BUILD THE CART ITEMS LIST
+            List<Map<String, Object>> itemsList = new ArrayList<>();
             for (CartItem item : finalItems) {
                 Map<String, Object> itemMap = new HashMap<>();
                 itemMap.put("medicineId", item.getMedicineId());
@@ -481,10 +547,25 @@ public class CheckoutActivity extends AppCompatActivity {
                 itemMap.put("imageUrl", item.getImageUrl());
                 itemsList.add(itemMap);
             }
-            orderData.put("items", itemsList);
 
+            // 👉 4. THE LOMBOK BUILDER
+            Order newOrder = Order.builder()
+                    .orderId(orderId)
+                    .userId(userId)
+                    .status("Pending")
+                    .isPaid(true)
+                    .grandTotal(subtotal + deliveryFee)
+                    .deliveryMethod("Online")
+                    .prescriptionUrl(checkoutPrescriptionUrl)
+                    .deliveryAddress(deliveryAddress)
+                    .items(itemsList)
+                    .pharmacyId(commonPharmacyId)
+                    .pharmacyName(commonPharmacyName)
+                    .build();
+
+            // 👉 5. SAVE DIRECTLY TO FIREBASE
             FirebaseFirestore.getInstance().collection("orders").document(orderId)
-                    .set(orderData)
+                    .set(newOrder)
                     .addOnSuccessListener(aVoid -> {
                         executorService.execute(() -> {
                             db.cartDao().clearCart();
@@ -508,9 +589,6 @@ public class CheckoutActivity extends AppCompatActivity {
         });
     }
 
-    // ==========================================
-    // --- PHASE 4: UPDATE INVENTORY & CLEANUP ---
-    // ==========================================
     private void updateInventoryAndClearCart(String userId, List<CartItem> items) {
         FirebaseFirestore firestore = FirebaseFirestore.getInstance();
         WriteBatch batch = firestore.batch();

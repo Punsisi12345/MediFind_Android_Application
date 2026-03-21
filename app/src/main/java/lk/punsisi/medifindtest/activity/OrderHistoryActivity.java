@@ -23,6 +23,7 @@ import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
@@ -34,6 +35,7 @@ import java.util.Map;
 import lk.punsisi.medifindtest.R;
 import lk.punsisi.medifindtest.adapter.OrderAdapter;
 import lk.punsisi.medifindtest.databinding.BottomSheetOrderDetailsBinding;
+import lk.punsisi.medifindtest.model.CustomerFeedback;
 import lk.punsisi.medifindtest.model.Order;
 
 public class OrderHistoryActivity extends AppCompatActivity {
@@ -45,6 +47,8 @@ public class OrderHistoryActivity extends AppCompatActivity {
     private TextView tvNoOrders;
 
     private BottomSheetOrderDetailsBinding sheetBinding;
+
+    private ListenerRegistration orderListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,10 +70,99 @@ public class OrderHistoryActivity extends AppCompatActivity {
         rvOrders.setLayoutManager(new LinearLayoutManager(this));
 
         orderList = new ArrayList<>();
-        adapter = new OrderAdapter(this, orderList,orderId -> {
-            showOrderDetailsBottomSheet(orderId);
+
+        // 👉 UPDATED: Implement both click listeners
+        adapter = new OrderAdapter(this, orderList, new OrderAdapter.OnOrderClickListener() {
+            @Override
+            public void onOrderClick(String orderId) {
+                showOrderDetailsBottomSheet(orderId);
+            }
+
+            @Override
+            public void onPayClick(Order order) {
+                startPayHerePayment(order);
+            }
+
+            @Override
+            public void onReviewClick(Order order) {
+                showReviewBottomSheet(order);
+            }
         });
+
         rvOrders.setAdapter(adapter);
+    }
+
+    private void showReviewBottomSheet(Order order) {
+        // Create the Bottom Sheet
+        BottomSheetDialog dialog = new BottomSheetDialog(this);
+        View view = getLayoutInflater().inflate(R.layout.bottom_sheet_add_review, null);
+        dialog.setContentView(view);
+
+        // Find the views
+        android.widget.RatingBar ratingBar = view.findViewById(R.id.rating_bar);
+        com.google.android.material.textfield.TextInputEditText etComment = view.findViewById(R.id.et_review_comment);
+        com.google.android.material.button.MaterialButton btnSubmit = view.findViewById(R.id.btn_submit_review);
+
+        btnSubmit.setOnClickListener(v -> {
+            float rating = ratingBar.getRating();
+            String comment = etComment.getText() != null ? etComment.getText().toString().trim() : "";
+
+            if (rating == 0) {
+                Toast.makeText(this, "Please select at least 1 star", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Show a loading state on the button
+            btnSubmit.setEnabled(false);
+            btnSubmit.setText("Submitting...");
+
+            // 👉 Create the object using your beautiful new Builder!
+            CustomerFeedback feedback = CustomerFeedback.builder()
+                    .customerId(FirebaseAuth.getInstance().getUid())
+                    .orderId(order.getOrderId())
+                    .pharmacyId(order.getPharmacyId())
+                    .rating(rating)
+                    .comment(comment)
+                    .build();
+
+            // Save to the "customer_feedback" collection
+            FirebaseFirestore.getInstance().collection("customer_feedback")
+                    .add(feedback)
+                    .addOnSuccessListener(documentReference -> {
+                        Toast.makeText(this, "Review submitted successfully! 🌟", Toast.LENGTH_SHORT).show();
+                        dialog.dismiss();
+
+                        // Optional: Update the order document to show a review was left
+                        // so the user can't leave 10 reviews for the same order!
+                        FirebaseFirestore.getInstance().collection("orders")
+                                .document(order.getOrderId())
+                                .update("reviewed", true);
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(this, "Failed to submit review", Toast.LENGTH_SHORT).show();
+                        btnSubmit.setEnabled(true);
+                        btnSubmit.setText("Submit Review");
+                    });
+        });
+
+        dialog.show();
+    }
+
+    private void startPayHerePayment(Order order) {
+        if (order.getGrandTotal() <= 0) {
+            Toast.makeText(this, "Invalid amount for payment.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        android.content.Intent intent = new android.content.Intent(this, CheckoutActivity.class);
+        // Pass the price
+        intent.putExtra("CART_TOTAL", order.getGrandTotal());
+        // Tell CheckoutActivity this is an EXISTING order payment!
+        intent.putExtra("IS_EXISTING_ORDER", true);
+        // Pass the Order ID so we know which document to update after payment
+        intent.putExtra("EXISTING_ORDER_ID", order.getOrderId());
+
+        startActivity(intent);
     }
 
     private void fetchOrdersFromFirebase() {
@@ -80,30 +173,36 @@ public class OrderHistoryActivity extends AppCompatActivity {
             return;
         }
 
-        FirebaseFirestore.getInstance().collection("orders")
+        // We use addSnapshotListener instead of get()
+        orderListener = FirebaseFirestore.getInstance().collection("orders")
                 .whereEqualTo("userId", user.getUid())
                 .orderBy("timestamp", Query.Direction.DESCENDING)
                 .limit(20)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
+                .addSnapshotListener((queryDocumentSnapshots, e) -> {
                     progressBar.setVisibility(View.GONE);
-                    orderList.clear();
 
-                    if (queryDocumentSnapshots.isEmpty()) {
-                        tvNoOrders.setVisibility(View.VISIBLE);
-                    } else {
-                        tvNoOrders.setVisibility(View.GONE);
-                        for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
-                            Order order = document.toObject(Order.class);
-                            orderList.add(order);
-                        }
-                        adapter.notifyDataSetChanged();
+                    // Handle errors (like internet disconnects)
+                    if (e != null) {
+                        Log.e("OrderHistory", "Error loading orders live", e);
+                        Toast.makeText(this, "Live updates paused. Check internet.", Toast.LENGTH_SHORT).show();
+                        return;
                     }
-                })
-                .addOnFailureListener(e -> {
-                    progressBar.setVisibility(View.GONE);
-                    Log.e("OrderHistory", "Error loading orders", e);
-                    Toast.makeText(this, "Failed to load orders. Check your internet connection.", Toast.LENGTH_SHORT).show();
+
+                    // Process the live data
+                    if (queryDocumentSnapshots != null) {
+                        orderList.clear(); // Clear the old list
+
+                        if (queryDocumentSnapshots.isEmpty()) {
+                            tvNoOrders.setVisibility(View.VISIBLE);
+                        } else {
+                            tvNoOrders.setVisibility(View.GONE);
+                            for (QueryDocumentSnapshot document : queryDocumentSnapshots) {
+                                Order order = document.toObject(Order.class);
+                                orderList.add(order);
+                            }
+                        }
+                        adapter.notifyDataSetChanged(); // Tell the UI to refresh!
+                    }
                 });
     }
 
@@ -164,14 +263,15 @@ public class OrderHistoryActivity extends AppCompatActivity {
                         if (hasItems) {
                             // Grand Total
                             Double total = document.getDouble("grandTotal");
-                            if (total != null) sheetBinding.tvSheetTotal.setText(String.format(java.util.Locale.getDefault(), "Rs. %.2f", total));
+                            if (total != null)
+                                sheetBinding.tvSheetTotal.setText(String.format(java.util.Locale.getDefault(), "Rs. %.2f", total));
 
                             // Address Map
-                            java.util.Map<String, String> addressMap = (java.util.Map<String, String>) document.get("shippingAddress");
+                            java.util.Map<String, String> addressMap = (java.util.Map<String, String>) document.get("deliveryAddress");
                             if (addressMap != null) {
-                                String fullAddress = addressMap.get("address1") + ", " +
-                                        addressMap.get("city") + "\n" +
-                                        "Phone: " + addressMap.get("phone");
+                                String fullAddress = addressMap.get("addressLine1") + ", " +
+                                        addressMap.get("homeTown") + "\n" +
+                                        "Phone: " + addressMap.get("phoneNumber");
                                 sheetBinding.tvSheetAddress.setText(fullAddress);
                             }
 
@@ -209,6 +309,15 @@ public class OrderHistoryActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load details", Toast.LENGTH_SHORT).show();
                     dialog.dismiss();
                 });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Stop listening to Firebase when the user closes the screen
+        if (orderListener != null) {
+            orderListener.remove();
+        }
     }
 
 

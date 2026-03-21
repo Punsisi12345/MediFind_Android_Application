@@ -60,11 +60,22 @@ public class OnBording extends AppCompatActivity {
 
     // 2. Intercept the button click to ask for permissions first!
     public void openRegistrationPage() {
-        permissionLauncher.launch(new String[]{
-                Manifest.permission.CAMERA,
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-        });
+        // Check if the phone is running Android 13 (TIRAMISU) or newer
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            permissionLauncher.launch(new String[]{
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.POST_NOTIFICATIONS // <--- Added for Android 13+
+            });
+        } else {
+            // If it's Android 12 or older, notifications are allowed by default!
+            permissionLauncher.launch(new String[]{
+                    Manifest.permission.CAMERA,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            });
+        }
     }
 
     // 3. Handle the final routing and SharedPreferences

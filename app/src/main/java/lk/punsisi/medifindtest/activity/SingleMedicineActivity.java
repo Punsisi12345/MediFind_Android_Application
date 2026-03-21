@@ -95,6 +95,16 @@ public class SingleMedicineActivity extends AppCompatActivity {
         rvRelatedProducts = findViewById(R.id.rv_related_products);
         // Make it scroll horizontally!
         rvRelatedProducts.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+
+        tvPharmacyName.setOnClickListener(v -> {
+            if (currentMedicine != null && currentMedicine.getPharmacistId() != null) {
+                android.content.Intent intent = new android.content.Intent(this, MedicinesListActivity.class);
+                intent.putExtra("IS_PHARMACY_STORE", true); // Tell the activity it's a storefront!
+                intent.putExtra("PHARMACY_ID", currentMedicine.getPharmacistId());
+                intent.putExtra("CATEGORY_NAME", currentMedicine.getPharmacyName());
+                startActivity(intent);
+            }
+        });
     }
 
     // ==========================================

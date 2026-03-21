@@ -58,10 +58,14 @@ dependencies {
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-storage")
+    implementation("com.google.firebase:firebase-messaging")
+    implementation 'com.google.android.gms:play-services-maps:18.2.0'
 
     implementation("androidx.credentials:credentials:1.3.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    implementation 'com.google.android.gms:play-services-location:21.1.0'
 
     compileOnly libs.lombok
     annotationProcessor libs.lombok
@@ -77,4 +81,7 @@ dependencies {
     implementation 'com.github.PayHereDevs:payhere-android-sdk:v3.0.18'
 
     implementation 'com.github.PhilJay:MPAndroidChart:v3.1.0'
+
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-scalars:2.9.0")
 }

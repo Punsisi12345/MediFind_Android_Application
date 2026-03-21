@@ -51,9 +51,9 @@ public class AllCategoriesActivity extends AppCompatActivity {
         rvAllCategories.setLayoutManager(new GridLayoutManager(this, 2));
 
         // 3. Setup Pagination UI Components
-        btnPrev = findViewById(R.id.btn_prev_page);
-        btnNext = findViewById(R.id.btn_next_page);
-        tvPageIndicator = findViewById(R.id.tv_page_indicator);
+        btnPrev = findViewById(R.id.btn_page_prev);
+        btnNext = findViewById(R.id.btn_page_next);
+        tvPageIndicator = findViewById(R.id.tv_page_info);
 
         // 4. Handle Previous Button Click
         btnPrev.setOnClickListener(v -> {
