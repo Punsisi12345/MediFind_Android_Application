@@ -17,7 +17,6 @@ public class OnBordingFirstPage extends Fragment {
 
     private FragmentOnBordingFirstPageBinding binding;
 
-
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
@@ -25,7 +24,6 @@ public class OnBordingFirstPage extends Fragment {
 
         binding.getstarted.setOnClickListener(v -> {
 
-            //load wela thiyana activity eka onbording actvity ekada kiyala thama meken balanne
             if (getActivity() instanceof OnBording){
                 ((OnBording) getActivity()).moveToNextPage();
             }
@@ -33,8 +31,6 @@ public class OnBordingFirstPage extends Fragment {
 
         return binding.getRoot();
     }
-
-    //prevent memory leaks in fragment
 
     @Override
     public void onDestroyView() {

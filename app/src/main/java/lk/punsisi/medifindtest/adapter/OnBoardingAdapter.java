@@ -17,7 +17,7 @@ public class OnBoardingAdapter extends FragmentStateAdapter {
 
     @Override
     public int getItemCount() {
-        return 3; // Number of pages
+        return 3;
     }
 
     @NonNull
@@ -25,8 +25,8 @@ public class OnBoardingAdapter extends FragmentStateAdapter {
     public Fragment createFragment(int position) {
         switch (position) {
             case 0: return new OnBordingFirstPage();
-            case 1: return new OnBordingSecondPage(); // Create this fragment later
-            case 2: return new OnBordingThirdPage();  // Create this fragment later
+            case 1: return new OnBordingSecondPage();
+            case 2: return new OnBordingThirdPage();
             default: return new OnBordingFirstPage();
         }
     }

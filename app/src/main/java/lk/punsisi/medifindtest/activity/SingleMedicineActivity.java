@@ -1,6 +1,9 @@
 package lk.punsisi.medifindtest.activity;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.widget.ImageButton;
 import android.widget.ImageView;
@@ -20,10 +23,13 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.firebase.firestore.FirebaseFirestore;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import lk.punsisi.medifindtest.R;
+import lk.punsisi.medifindtest.adapter.MedicineAdapter;
 import lk.punsisi.medifindtest.helper.CartHelper;
 import lk.punsisi.medifindtest.model.CartItem;
 import lk.punsisi.medifindtest.model.Medicine;
@@ -31,7 +37,6 @@ import lk.punsisi.medifindtest.room.AppDatabase;
 
 public class SingleMedicineActivity extends AppCompatActivity {
 
-    // UI Variables
     private ImageView ivMedicine;
     private TextView tvBadge, tvCategoryName, tvTitle, tvDosage, tvPrice, tvDescription, tvPharmacyName;
     private TextView tvAvailableQty, tvSalesCount, tvSelectedQuantity;
@@ -40,10 +45,10 @@ public class SingleMedicineActivity extends AppCompatActivity {
     private FloatingActionButton fabBack;
     private RecyclerView rvRelatedProducts;
 
-    // Data Variables
+
     private String medicineId;
     private Medicine currentMedicine;
-    private int selectedQuantity = 1; // Default to 1
+    private int selectedQuantity = 1;
     private int maxAvailableStock = 0;
 
     @Override
@@ -51,13 +56,10 @@ public class SingleMedicineActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_single_medicine);
 
-        // 1. Initialize UI Elements
         initViews();
 
-        // 2. Setup Back Button
         fabBack.setOnClickListener(v -> finish());
 
-        // 3. Get the ID passed from the Intent!
         medicineId = getIntent().getStringExtra("MEDICINE_ID");
 
         if (medicineId != null) {
@@ -67,7 +69,6 @@ public class SingleMedicineActivity extends AppCompatActivity {
             finish();
         }
 
-        // 4. Setup Quantity Buttons
         setupQuantityLogic();
 
     }
@@ -85,21 +86,19 @@ public class SingleMedicineActivity extends AppCompatActivity {
         tvDescription = findViewById(R.id.tv_medicine_description);
         tvPharmacyName = findViewById(R.id.tv_pharmacy_name);
 
-
-        // Cart bar UI
         btnMinus = findViewById(R.id.btn_minus);
         tvSelectedQuantity = findViewById(R.id.tv_quantity);
         btnPlus = findViewById(R.id.btn_plus);
         btnAddToCart = findViewById(R.id.btn_add_to_cart_main);
 
         rvRelatedProducts = findViewById(R.id.rv_related_products);
-        // Make it scroll horizontally!
+
         rvRelatedProducts.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
 
         tvPharmacyName.setOnClickListener(v -> {
             if (currentMedicine != null && currentMedicine.getPharmacistId() != null) {
-                android.content.Intent intent = new android.content.Intent(this, MedicinesListActivity.class);
-                intent.putExtra("IS_PHARMACY_STORE", true); // Tell the activity it's a storefront!
+                Intent intent = new Intent(this, MedicinesListActivity.class);
+                intent.putExtra("IS_PHARMACY_STORE", true);
                 intent.putExtra("PHARMACY_ID", currentMedicine.getPharmacistId());
                 intent.putExtra("CATEGORY_NAME", currentMedicine.getPharmacyName());
                 startActivity(intent);
@@ -107,9 +106,6 @@ public class SingleMedicineActivity extends AppCompatActivity {
         });
     }
 
-    // ==========================================
-    // --- LOAD DATA FROM DATABASE ---
-    // ==========================================
     private void loadMedicineData() {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(() -> {
@@ -125,39 +121,34 @@ public class SingleMedicineActivity extends AppCompatActivity {
     }
 
     private void populateUI() {
-        // Set basic text
+
         tvCategoryName.setText(currentMedicine.getCategoryName());
         tvTitle.setText(currentMedicine.getName());
         tvPrice.setText("Rs. " + String.format("%.2f", currentMedicine.getPrice()));
 
-        // If your model has these, set them. Otherwise, comment them out!
         if (currentMedicine.getDosage() != null) tvDosage.setText(currentMedicine.getDosage());
 
-        // Set Image
+
         Glide.with(this)
                 .load(currentMedicine.getImageUrl())
                 .placeholder(R.drawable.baseline_local_pharmacy_24)
                 .into(ivMedicine);
 
-        // Safely get stock for our logic
         maxAvailableStock = currentMedicine.getQuantity();
         tvAvailableQty.setText(String.valueOf(maxAvailableStock));
         tvDescription.setText(currentMedicine.getDescription());
         tvPharmacyName.setText(currentMedicine.getPharmacyName());
 
-
-        // Simulated sales count (You can replace this with a real DB field later!)
         tvSalesCount.setText( String.valueOf(currentMedicine.getSalesCount()));
 
-        // Dynamic Badge Color
         String status = currentMedicine.getStatus();
         tvBadge.setText(status != null ? status : "Unknown");
         if ("In Stock".equalsIgnoreCase(status)) {
-            tvBadge.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#4CAF50")));
+            tvBadge.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#4CAF50")));
         } else if("Out of Stock".equalsIgnoreCase(status)) {
-            tvBadge.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#F44336")));
+            tvBadge.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#F44336")));
         } else {
-            tvBadge.setBackgroundTintList(android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#FFC107")));
+            tvBadge.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#FFC107")));
         }
 
         if (currentMedicine.getCategoryId() != null) {
@@ -165,9 +156,6 @@ public class SingleMedicineActivity extends AppCompatActivity {
         }
     }
 
-    // ==========================================
-    // --- QUANTITY CART LOGIC ---
-    // ==========================================
     private void setupQuantityLogic() {
 
         btnMinus.setOnClickListener(v -> {
@@ -178,7 +166,7 @@ public class SingleMedicineActivity extends AppCompatActivity {
         });
 
         btnPlus.setOnClickListener(v -> {
-            // Prevent user from adding more than what we actually have in stock!
+
             if (selectedQuantity < maxAvailableStock) {
                 selectedQuantity++;
                 tvSelectedQuantity.setText(String.valueOf(selectedQuantity));
@@ -193,37 +181,34 @@ public class SingleMedicineActivity extends AppCompatActivity {
                 return;
             }
 
-            // Just use the helper! We pass the custom quantity they selected.
+
             CartHelper.addMedicineToCart(SingleMedicineActivity.this, currentMedicine, selectedQuantity);
             Toast.makeText(this, "item added to cart in single page successfully", Toast.LENGTH_SHORT).show();
 
         });
     }
 
-    // ==========================================
-    // --- LOAD RELATED PRODUCTS ---
-    // ==========================================
     private void loadRelatedProducts(String categoryId, String currentMedicineId) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(() -> {
             AppDatabase db = AppDatabase.getDatabase(this);
 
-            // 1. Get ALL medicines in this category
-            java.util.List<Medicine> allCategoryMedicines = db.medicineDao().getMedicinesByCategory(categoryId);
 
-            // 2. Filter out the one we are currently looking at
-            java.util.List<Medicine> finalRelatedList = new java.util.ArrayList<>();
+            List<Medicine> allCategoryMedicines = db.medicineDao().getMedicinesByCategory(categoryId);
+
+
+            List<Medicine> finalRelatedList = new ArrayList<>();
             for (Medicine medicine : allCategoryMedicines) {
                 if (!medicine.getId().equals(currentMedicineId)) {
                     finalRelatedList.add(medicine);
                 }
             }
 
-            // 3. Send them to the UI
+
             runOnUiThread(() -> {
-                // Pass FALSE so it uses your beautiful small Home Screen cards!
-                lk.punsisi.medifindtest.adapter.MedicineAdapter adapter =
-                        new lk.punsisi.medifindtest.adapter.MedicineAdapter(SingleMedicineActivity.this, finalRelatedList, false);
+
+                MedicineAdapter adapter =
+                        new MedicineAdapter(SingleMedicineActivity.this, finalRelatedList, false);
 
                 rvRelatedProducts.setAdapter(adapter);
             });

@@ -12,6 +12,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
 import java.util.List;
 
 import lk.punsisi.medifindtest.R;
@@ -23,7 +24,6 @@ public class CartAdapter extends RecyclerView.Adapter<CartAdapter.CartViewHolder
     private List<CartItem> cartList;
     private CartActionListener listener;
 
-    // Interface to talk to the Fragment!
     public interface CartActionListener {
         void onQuantityChanged(CartItem item, int newQuantity, int position);
         void onItemDeleted(CartItem item, int position);
@@ -46,25 +46,21 @@ public class CartAdapter extends RecyclerView.Adapter<CartAdapter.CartViewHolder
     public void onBindViewHolder(@NonNull CartViewHolder holder, int position) {
         CartItem item = cartList.get(position);
 
-        // 1. Set Name and Quantity
         holder.tvName.setText(item.getName());
         holder.tvQuantity.setText(String.valueOf(item.getQuantity()));
 
-        // 2. THE FIX: Calculate the total price for THIS specific item card!
         double totalItemPrice = item.getPrice() * item.getQuantity();
         holder.tvPrice.setText(String.format("Rs. %.2f", totalItemPrice));
 
-        // 3. THE FIX: Load the real image using Glide!
-        // We use a placeholder so it doesn't look blank while the internet is downloading the image.
-        com.bumptech.glide.Glide.with(context)
+
+        Glide.with(context)
                 .load(item.getImageUrl())
                 .placeholder(R.drawable.baseline_medication_24)
                 .error(R.drawable.baseline_medication_24)
                 .into(holder.ivImage);
 
-        // --- CLICK LISTENERS ---
 
-        // PLUS BUTTON
+        // plus button
         holder.btnPlus.setOnClickListener(v -> {
             int currentQty = item.getQuantity();
             if (currentQty < item.getMaxStock()) {
@@ -74,7 +70,7 @@ public class CartAdapter extends RecyclerView.Adapter<CartAdapter.CartViewHolder
             }
         });
 
-        // MINUS BUTTON
+        // minus button
         holder.btnMinus.setOnClickListener(v -> {
             int currentQty = item.getQuantity();
             if (currentQty > 1) {
@@ -84,7 +80,7 @@ public class CartAdapter extends RecyclerView.Adapter<CartAdapter.CartViewHolder
             }
         });
 
-        // DELETE BUTTON
+        // delete button
         holder.btnDelete.setOnClickListener(v -> {
             listener.onItemDeleted(item, position);
         });

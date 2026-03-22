@@ -16,7 +16,6 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 
 import java.util.List;
-import java.util.Locale;
 
 import lk.punsisi.medifindtest.R;
 import lk.punsisi.medifindtest.activity.MedicinesListActivity;
@@ -47,7 +46,6 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.ViewHo
         } else {
             view = LayoutInflater.from(context).inflate(R.layout.category_item, parent, false);
         }
-
         return new ViewHolder(view);
     }
 
@@ -66,22 +64,16 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.ViewHo
         if (holder.categoryDescription != null) {
             String descText = category.getDescription();
             holder.categoryDescription.setText(descText);
-
-            // Let's print the actual text we are trying to set!
             Log.d("CategoryAdapter", "Category: " + category.getName() + " | Desc: " + descText);
         }else{
             Log.d("CategoryAdapter", "categoryDescription is null");
         }
-
-        // Add this inside onBindViewHolder!
         holder.itemView.setOnClickListener(v -> {
-            // Assuming your Category model has getId() and getName() methods
             Intent intent = new Intent(context, MedicinesListActivity.class);
             intent.putExtra("CATEGORY_ID", category.getId());
             intent.putExtra("CATEGORY_NAME", category.getName());
             context.startActivity(intent);
         });
-
     }
 
     @Override
@@ -103,8 +95,6 @@ public class CategoryAdapter extends RecyclerView.Adapter<CategoryAdapter.ViewHo
         }
 
     }
-
-
 }
 
 

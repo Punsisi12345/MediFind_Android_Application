@@ -1,6 +1,9 @@
 package lk.punsisi.medifindtest.fragment;
 
+import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -29,10 +32,14 @@ import java.util.concurrent.Executors;
 import lk.punsisi.medifindtest.R;
 import lk.punsisi.medifindtest.activity.CheckoutActivity;
 import lk.punsisi.medifindtest.adapter.CartAdapter;
+import lk.punsisi.medifindtest.databinding.FragmentCartBinding;
+import lk.punsisi.medifindtest.helper.CartHelper;
 import lk.punsisi.medifindtest.model.CartItem;
 import lk.punsisi.medifindtest.room.AppDatabase;
 
 public class CartFragment extends Fragment implements CartAdapter.CartActionListener {
+
+    private FragmentCartBinding binding;
 
     private RecyclerView rvCartItems;
     private CartAdapter cartAdapter;
@@ -42,48 +49,55 @@ public class CartFragment extends Fragment implements CartAdapter.CartActionList
     private TextView tvTotalPrice;
     private MaterialButton btnCheckout;
 
+    private FirebaseAuth auth;
+
     private AppDatabase db;
     private ExecutorService executorService;
 
     private boolean isNetworkAvailable() {
-        android.net.ConnectivityManager cm = (android.net.ConnectivityManager) requireContext().getSystemService(android.content.Context.CONNECTIVITY_SERVICE);
-        android.net.NetworkInfo netInfo = cm != null ? cm.getActiveNetworkInfo() : null;
+        ConnectivityManager cm = (ConnectivityManager) requireContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo netInfo = cm != null ? cm.getActiveNetworkInfo() : null;
         return netInfo != null && netInfo.isConnected();
     }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-        View view = inflater.inflate(R.layout.fragment_cart, container, false); // Make sure your layout is named fragment_cart.xml!
 
-        // 1. Initialize Views
-        rvCartItems = view.findViewById(R.id.rv_cart_items);
-        layoutEmptyState = view.findViewById(R.id.layout_cart_empty_state);
-        layoutCheckoutBar = view.findViewById(R.id.layout_cart_checkout_bar);
-        tvTotalPrice = view.findViewById(R.id.tv_cart_total_price);
-        btnCheckout = view.findViewById(R.id.btn_checkout);
+        binding = FragmentCartBinding.inflate(inflater, container,false);
 
-        // 2. Setup RecyclerView
+        auth = FirebaseAuth.getInstance();
+
+        rvCartItems = binding.rvCartItems;
+        layoutEmptyState = binding.layoutCartEmptyState;
+        layoutCheckoutBar = binding.layoutCartCheckoutBar;
+        tvTotalPrice = binding.tvCartTotalPrice;
+        btnCheckout = binding.btnCheckout;
+
         rvCartItems.setLayoutManager(new LinearLayoutManager(requireContext()));
         cartAdapter = new CartAdapter(requireContext(), cartList, this);
         rvCartItems.setAdapter(cartAdapter);
 
-        // 3. Initialize Database Tools
         db = AppDatabase.getDatabase(requireContext());
         executorService = Executors.newSingleThreadExecutor();
 
-        // 4. Load Data
         loadCartItems();
 
-        // 5. Checkout Click
+        //checkout button click
         btnCheckout.setOnClickListener(v -> {
 
-            // 1. Check for internet first!
+            //check internet connection
             if (!isNetworkAvailable()) {
                 Toast.makeText(requireContext(), "Please connect to the internet to proceed to checkout.", Toast.LENGTH_LONG).show();
-                return; // Stop right here, don't open the next screen!
+                return;
             }
 
-            // 2. If online, calculate the subtotal and proceed exactly as before
+            FirebaseUser currentUser = auth.getCurrentUser();
+
+            if (currentUser == null) {
+                Toast.makeText(requireContext(), "Please log in or register to place an order.", Toast.LENGTH_LONG).show();
+                return;
+            }
+
             double currentSubtotal = 0;
             for (CartItem item : cartList) {
                 currentSubtotal += (item.getPrice() * item.getQuantity());
@@ -94,12 +108,9 @@ public class CartFragment extends Fragment implements CartAdapter.CartActionList
             startActivity(intent);
         });
 
-        return view;
+        return  binding.getRoot();
     }
 
-    // ==========================================
-    // --- LOAD & CALCULATE LOGIC ---
-    // ==========================================
     private void loadCartItems() {
         executorService.execute(() -> {
             List<CartItem> itemsFromDb = db.cartDao().getActiveCartItems();
@@ -117,7 +128,7 @@ public class CartFragment extends Fragment implements CartAdapter.CartActionList
         if (cartList.isEmpty()) {
             layoutEmptyState.setVisibility(View.VISIBLE);
             rvCartItems.setVisibility(View.GONE);
-            layoutCheckoutBar.setVisibility(View.GONE); // Hide checkout bar if cart is empty!
+            layoutCheckoutBar.setVisibility(View.GONE);
         } else {
             layoutEmptyState.setVisibility(View.GONE);
             rvCartItems.setVisibility(View.VISIBLE);
@@ -131,9 +142,7 @@ public class CartFragment extends Fragment implements CartAdapter.CartActionList
         }
     }
 
-    // ==========================================
-    // --- INTERFACE CALLBACKS (FROM ADAPTER) ---
-    // ==========================================
+
     @Override
     public void onQuantityChanged(CartItem item, int newQuantity, int position) {
         item.setQuantity(newQuantity);
@@ -147,7 +156,7 @@ public class CartFragment extends Fragment implements CartAdapter.CartActionList
             db.cartDao().update(item);
 
             if (isOnline) updateFirebaseCartItem(item);
-            else lk.punsisi.medifindtest.helper.CartHelper.scheduleSync(requireContext()); // Schedule background sync!
+            else CartHelper.scheduleSync(requireContext());
         });
     }
 
@@ -160,23 +169,20 @@ public class CartFragment extends Fragment implements CartAdapter.CartActionList
         boolean isOnline = isNetworkAvailable();
 
         executorService.execute(() -> {
-            // SOFT DELETE: Mark as deleted and unsynced!
+
             item.setDeleted(true);
             item.setSynced(isOnline);
-            db.cartDao().update(item); // Update, don't delete yet!
+            db.cartDao().update(item);
 
             if (isOnline) {
                 deleteFromFirebase(item.getMedicineId());
-                db.cartDao().delete(item); // If online, safe to hard delete locally now
+                db.cartDao().delete(item);
             } else {
-                lk.punsisi.medifindtest.helper.CartHelper.scheduleSync(requireContext()); // Schedule background sync!
+                CartHelper.scheduleSync(requireContext());
             }
         });
     }
 
-    // ==========================================
-    // --- FIREBASE ONLINE SYNC ---
-    // ==========================================
     private void updateFirebaseCartItem(CartItem item) {
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) return;
@@ -202,15 +208,14 @@ public class CartFragment extends Fragment implements CartAdapter.CartActionList
     @Override
     public void onResume() {
         super.onResume();
-        // This runs EVERY time the user comes back to the Cart screen!
-        // Because Checkout emptied the database, this will now load an empty list
-        // and trigger your cute empty state animation automatically!
+
         loadCartItems();
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
+        binding =null;
         if (executorService != null) {
             executorService.shutdown();
         }

@@ -30,10 +30,10 @@ public class Order {
     private DeliveryAddress deliveryAddress;
 
     @Builder.Default
-    private boolean isPaid = false;
+    private boolean paid = false;
 
     @Builder.Default
-    private boolean isReviewed = false;
+    private boolean reviewed = false;
 
     @ServerTimestamp
     private Date timestamp;

@@ -28,7 +28,6 @@ public class OnBordingSecondPage extends Fragment {
 
         binding = FragmentOnBordingSecondPageBinding.inflate(inflater, container ,false);
 
-
         binding.btnBack.setOnClickListener(v -> {
             if (getActivity() instanceof OnBording){
                 ((OnBording) getActivity()).moveToPreviousPage();
@@ -40,7 +39,6 @@ public class OnBordingSecondPage extends Fragment {
                 ((OnBording) getActivity()).moveToNextPage();
             }
         });
-
 
         return binding.getRoot();
     }

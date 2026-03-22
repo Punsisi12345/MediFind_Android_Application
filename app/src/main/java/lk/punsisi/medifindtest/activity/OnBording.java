@@ -21,11 +21,10 @@ public class OnBording extends AppCompatActivity {
     private ViewPager2 viewPager2;
     private DotsIndicator dotsIndicator;
 
-    // 1. Setup the modern Permission Launcher
+
     private final ActivityResultLauncher<String[]> permissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
-                // This block runs AFTER the user clicks "Allow" or "Deny" on the popups.
-                // We don't strictly block them if they say no, we just proceed to the app.
+
                 completeOnboarding();
             });
 
@@ -39,7 +38,6 @@ public class OnBording extends AppCompatActivity {
         viewPager2 = binding.viewPager2;
         dotsIndicator = binding.dotsIndicator;
 
-        //set adapter to viewpager
         OnBoardingAdapter adapter = new OnBoardingAdapter(this);
         viewPager2.setAdapter(adapter);
 
@@ -58,18 +56,18 @@ public class OnBording extends AppCompatActivity {
         }
     }
 
-    // 2. Intercept the button click to ask for permissions first!
+
     public void openRegistrationPage() {
-        // Check if the phone is running Android 13 (TIRAMISU) or newer
+
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             permissionLauncher.launch(new String[]{
                     Manifest.permission.CAMERA,
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.POST_NOTIFICATIONS // <--- Added for Android 13+
+                    Manifest.permission.POST_NOTIFICATIONS
             });
         } else {
-            // If it's Android 12 or older, notifications are allowed by default!
+
             permissionLauncher.launch(new String[]{
                     Manifest.permission.CAMERA,
                     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -78,17 +76,15 @@ public class OnBording extends AppCompatActivity {
         }
     }
 
-    // 3. Handle the final routing and SharedPreferences
     private void completeOnboarding() {
-        // Save the flag as FALSE so they never see the ViewPager again
+
         SharedPreferences preferences = getSharedPreferences("MediFindPrefs", MODE_PRIVATE);
         SharedPreferences.Editor editor = preferences.edit();
         editor.putBoolean("isFirstTimeLaunch", false);
-        editor.apply(); // MUST use apply() to save it securely in the background
+        editor.apply();
 
-        // Finally, move them to the Registration screen
         Intent intent = new Intent(this, MainActivity.class);
         startActivity(intent);
-        finish(); // Destroy the Onboarding activity so they can't click 'Back' to return to it
+        finish();
     }
 }

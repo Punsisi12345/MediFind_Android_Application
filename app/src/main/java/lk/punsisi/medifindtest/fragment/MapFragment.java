@@ -3,10 +3,14 @@ package lk.punsisi.medifindtest.fragment;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.Resources;
+import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
+import android.location.Location;
 import android.net.Uri;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -27,12 +31,15 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.io.IOException;
@@ -42,6 +49,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import lk.punsisi.medifindtest.R;
+import lk.punsisi.medifindtest.activity.MedicinesListActivity;
+import lk.punsisi.medifindtest.databinding.BottomSheetMapPharmacyBinding;
 import lk.punsisi.medifindtest.databinding.FragmentMapBinding;
 import lk.punsisi.medifindtest.helper.MapHelper;
 
@@ -53,7 +62,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     private ExecutorService executorService;
     private FusedLocationProviderClient fusedLocationClient;
 
-    // The Permission Launcher MUST be declared here at the top
     private ActivityResultLauncher<String> requestPermissionLauncher;
 
     private android.location.Location currentUserLocation;
@@ -62,7 +70,6 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Initialize the permission launcher in onCreate
         requestPermissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(),
                 isGranted -> {
@@ -100,29 +107,29 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         mMap = googleMap;
 
         try {
-            // Apply the custom MediFind theme!
+
+            //custom theme add
             boolean success = mMap.setMapStyle(
-                    com.google.android.gms.maps.model.MapStyleOptions.loadRawResourceStyle(
+                    MapStyleOptions.loadRawResourceStyle(
                             requireContext(), R.raw.map_style));
-            if (!success) android.util.Log.e("Maps", "Style parsing failed.");
-        } catch (android.content.res.Resources.NotFoundException e) {
-            android.util.Log.e("Maps", "Can't find style. Error: ", e);
+            if (!success) Log.e("Maps", "Style parsing failed.");
+        } catch (Resources.NotFoundException e) {
+            Log.e("Maps", "Can't find style. Error: ", e);
         }
 
-        // 1. Map UI Settings
+        //map features
         mMap.getUiSettings().setZoomControlsEnabled(true);
         mMap.getUiSettings().setMapToolbarEnabled(false);
-        // Turns on live traffic lines across the whole map!
         mMap.setTrafficEnabled(true);
 
-        // 2. Restrict to Sri Lanka bounds
+        //only view sri lanka
         LatLng southWest = new LatLng(5.8, 79.5);
         LatLng northEast = new LatLng(9.9, 82.0);
         LatLngBounds sriLankaBounds = new LatLngBounds(southWest, northEast);
         mMap.setLatLngBoundsForCameraTarget(sriLankaBounds);
         mMap.setMinZoomPreference(7.0f);
 
-        // Set a default center just in case location is denied
+        //no location set default
         LatLng centerSriLanka = new LatLng(7.8731, 80.7718);
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(centerSriLanka, 7.5f));
 
@@ -133,26 +140,25 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
 
         loadPharmaciesOntoMap();
 
-        // 👉 3. Check for Location Permissions!
+        //check location permission
         if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            // Already have permission! Turn on the blue dot.
+
+            //enable user location
             enableUserLocationAndZoom();
         } else {
-            // Ask the user for permission
+            //ask for permission
             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION);
         }
     }
 
-    // This method suppresses the Android Studio red error because we already checked for permission above!
     @SuppressWarnings("MissingPermission")
     private void enableUserLocationAndZoom() {
         if (mMap == null) return;
 
-        // Turn on the Blue Dot and the "Jump to me" target button
         mMap.setMyLocationEnabled(true);
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
 
-        // Grab the user's exact GPS location and smoothly animate the camera to them
+        //focus to user location
         fusedLocationClient.getLastLocation().addOnSuccessListener(requireActivity(), location -> {
             if (location != null) {
 
@@ -183,12 +189,13 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
                                                 .title(name)
                                                 .icon(MapHelper.getPngMarkerIcon(requireContext(), R.drawable.map_marker)));
 
-                                        mMap.addCircle(new com.google.android.gms.maps.model.CircleOptions()
+                                        //add cycle around the marker
+                                        mMap.addCircle(new CircleOptions()
                                                 .center(coordinates)
-                                                .radius(5000) // 5000 meters = 5km delivery radius
+                                                .radius(5000) //5km delivery radius
                                                 .strokeWidth(3f)
-                                                .strokeColor(android.graphics.Color.parseColor("#00796B")) // Solid Teal border
-                                                .fillColor(android.graphics.Color.parseColor("#2200796B"))); // Very transparent Teal fill
+                                                .strokeColor(Color.parseColor("#00796B"))
+                                                .fillColor(Color.parseColor("#2200796B")));
                                         if (marker != null) marker.setTag(doc);
                                     });
                                 }
@@ -218,48 +225,38 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
         if (doc == null) return;
 
         BottomSheetDialog dialog = new BottomSheetDialog(requireContext());
-        View sheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_map_pharmacy, null);
-        dialog.setContentView(sheetView);
 
-        TextView tvName = sheetView.findViewById(R.id.tv_sheet_pharmacy_name);
-        TextView tvAddress = sheetView.findViewById(R.id.tv_sheet_pharmacy_address);
-        TextView tvDistance = sheetView.findViewById(R.id.tv_sheet_pharmacy_distance);
-        TextView tvReviews = sheetView.findViewById(R.id.tv_sheet_pharmacy_reviews);
-        com.google.android.material.imageview.ShapeableImageView ivProfile = sheetView.findViewById(R.id.iv_sheet_pharmacy_image);
-        com.google.android.material.button.MaterialButton btnDirections = sheetView.findViewById(R.id.btn_sheet_get_directions);
-        com.google.android.material.button.MaterialButton btnShop = sheetView.findViewById(R.id.btn_sheet_shop);
-        com.google.android.material.button.MaterialButton btnCall = sheetView.findViewById(R.id.btn_sheet_call);
+        BottomSheetMapPharmacyBinding sheetBinding = BottomSheetMapPharmacyBinding.inflate(getLayoutInflater());
+        dialog.setContentView(sheetBinding.getRoot());
 
-        tvName.setText(doc.getString("pharmacyName"));
-        tvAddress.setText(doc.getString("pharmacyAddress"));
+        sheetBinding.tvSheetPharmacyName.setText(doc.getString("pharmacyName"));
+        sheetBinding.tvSheetPharmacyAddress.setText(doc.getString("pharmacyAddress"));
 
-        // 👉 THE DISTANCE CALCULATOR
+        //calculate distance
         LatLng destination = marker.getPosition();
         if (currentUserLocation != null) {
             float[] results = new float[1];
-            android.location.Location.distanceBetween(
+            Location.distanceBetween(
                     currentUserLocation.getLatitude(), currentUserLocation.getLongitude(),
                     destination.latitude, destination.longitude,
                     results
             );
 
-            // Convert meters to Kilometers (e.g. 5200 meters -> 5.2 km)
+            //M to KM
             float distanceInKm = results[0] / 1000f;
-            tvDistance.setText(String.format(Locale.getDefault(), "📍 %.1f km away", distanceInKm));
+            sheetBinding.tvSheetPharmacyDistance.setText(String.format(Locale.getDefault(), "📍 %.1f km away", distanceInKm));
         } else {
-            // If GPS is still loading or denied
-            tvDistance.setVisibility(View.GONE);
+            sheetBinding.tvSheetPharmacyDistance.setVisibility(View.GONE);
         }
 
         String profileUrl = doc.getString("profileImage");
         if (profileUrl != null && !profileUrl.isEmpty()) {
-            Glide.with(this).load(profileUrl).into(ivProfile);
+            Glide.with(this).load(profileUrl).into(sheetBinding.ivSheetPharmacyImage);
         }
 
-        btnDirections.setOnClickListener(v -> {
+        //phone map load for the direction
+        sheetBinding.btnSheetGetDirections.setOnClickListener(v -> {
             dialog.dismiss();
-//            LatLng destination = marker.getPosition();
-
             Uri gmmIntentUri = Uri.parse("google.navigation:q=" + destination.latitude + "," + destination.longitude);
             Intent mapIntent = new Intent(Intent.ACTION_VIEW, gmmIntentUri);
             mapIntent.setPackage("com.google.android.apps.maps");
@@ -271,13 +268,11 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             }
         });
 
-        // 👉 THE TELEPHONE DIALER LAUNCHER
-        btnCall.setOnClickListener(v -> {
-            // Check your exact Firebase field name! Change "pharmacyPhone" if needed.
+        //open phone dialer
+        sheetBinding.btnSheetCall.setOnClickListener(v -> {
             String phoneNumber = doc.getString("telephone");
 
             if (phoneNumber != null && !phoneNumber.trim().isEmpty()) {
-                // This Intent opens the phone dialer and pre-types the number
                 Intent intent = new Intent(Intent.ACTION_DIAL);
                 intent.setData(Uri.parse("tel:" + phoneNumber));
                 startActivity(intent);
@@ -286,51 +281,42 @@ public class MapFragment extends Fragment implements OnMapReadyCallback {
             }
         });
 
-// 👉 THE "VISIT SHOP" LAUNCHER
-        btnShop.setOnClickListener(v -> {
-            // 1. Dismiss the bottom sheet so it's gone when they press back
+        //visit shop
+        sheetBinding.btnSheetShop.setOnClickListener(v -> {
             dialog.dismiss();
 
-            // 2. Grab the specific Pharmacy's Data from the marker
             String pharmacyId = doc.getString("uid");
             if (pharmacyId == null) pharmacyId = doc.getId(); // Failsafe
             String pharmacyName = doc.getString("pharmacyName");
 
-            // 3. Launch the Storefront Activity!
-            Intent intent = new Intent(requireContext(), lk.punsisi.medifindtest.activity.MedicinesListActivity.class);
-            intent.putExtra("IS_PHARMACY_STORE", true); // Tell the activity it's a storefront!
+            Intent intent = new Intent(requireContext(), MedicinesListActivity.class);
+            intent.putExtra("IS_PHARMACY_STORE", true);
             intent.putExtra("PHARMACY_ID", pharmacyId);
             intent.putExtra("CATEGORY_NAME", pharmacyName);
             startActivity(intent);
         });
 
+        //get reviews according to pharmacy
+        String pharmacyIdForReview = doc.getString("uid");
+        if (pharmacyIdForReview == null) pharmacyIdForReview = doc.getId();
 
-        // 👉 FETCH REVIEWS SAFELY
-        // Grab the pharmacy ID (assuming it is saved as 'uid' or you can use doc.getId())
-        String pharmacyId = doc.getString("uid");
-        if (pharmacyId == null) pharmacyId = doc.getId(); // Fallback just in case!
-
-        // Start listening for reviews
-        com.google.firebase.firestore.ListenerRegistration reviewListener = db.collection("customer_feedback")
-                .whereEqualTo("pharmacyId", pharmacyId)
+        ListenerRegistration reviewListener = db.collection("customer_feedback")
+                .whereEqualTo("pharmacyId", pharmacyIdForReview)
                 .addSnapshotListener((value, error) -> {
-                    // Safe check if the dialog is still open
                     if (error != null) {
-                        tvReviews.setText("Reviews unavailable");
+                        sheetBinding.tvSheetPharmacyReviews.setText("Reviews unavailable");
                         return;
                     }
                     if (value != null) {
                         int count = value.size();
                         if (count == 0) {
-                            tvReviews.setText("No reviews yet");
+                            sheetBinding.tvSheetPharmacyReviews.setText("No reviews yet");
                         } else {
-                            tvReviews.setText(count + " Reviews");
+                            sheetBinding.tvSheetPharmacyReviews.setText(count + " Reviews");
                         }
                     }
                 });
 
-        // 👉 THE MEMORY SAVER
-        // When the user swipes the bottom sheet down to close it, turn off the Firebase listener!
         dialog.setOnDismissListener(d -> {
             if (reviewListener != null) {
                 reviewListener.remove();

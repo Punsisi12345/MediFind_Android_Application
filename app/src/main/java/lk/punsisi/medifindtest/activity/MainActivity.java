@@ -1,14 +1,19 @@
 package lk.punsisi.medifindtest.activity;
 
 
+import android.app.Dialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
@@ -19,6 +24,8 @@ import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
+import androidx.work.WorkInfo;
+import androidx.work.WorkManager;
 
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.MaterialToolbar;
@@ -29,6 +36,7 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.messaging.FirebaseMessaging;
 
 import lk.punsisi.medifindtest.R;
 import lk.punsisi.medifindtest.databinding.ActivityMainBinding;
@@ -43,19 +51,18 @@ import lk.punsisi.medifindtest.model.User;
 public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener, NavigationBarView.OnItemSelectedListener {
 
     private ActivityMainBinding binding;
+    private SideNavHeaderBinding sideNavHeaderBinding;
 
     private DrawerLayout drawerLayout;
     private MaterialToolbar toolbar;
     private NavigationView sidenavigationView;
     private BottomNavigationView bottomNavigationView;
 
-    private SideNavHeaderBinding sideNavHeaderBinding;
-
+    //firebase
     private FirebaseAuth firebaseAuth;
     private FirebaseFirestore firebaseFirestore;
 
     private android.app.Dialog syncDialog;
-
 
     private ListenerRegistration roleSyncListener;
 
@@ -85,7 +92,7 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         toggle.getDrawerArrowDrawable().setColor(getResources().getColor(android.R.color.white, getTheme()));
         toggle.syncState();
 
-        //        get back button
+        //back press handle when nav bar open
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -112,23 +119,32 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         View headerView = sidenavigationView.getHeaderView(0);
         sideNavHeaderBinding = SideNavHeaderBinding.bind(headerView);
 
+        //always listening changes in firebase and immediately update
         FirebaseUser currentUser = firebaseAuth.getCurrentUser();
         if (currentUser != null) {
             String userId = currentUser.getUid();
 
             firebaseFirestore.collection("users").document(userId)
-                    .get()
-                    .addOnSuccessListener(documentSnapshot -> {
-                        if (documentSnapshot.exists()) {
-                            User user = documentSnapshot.toObject(User.class);
-                            sideNavHeaderBinding.headerUserName.setText(user.getName());
-                            sideNavHeaderBinding.headerUserEmail.setText(user.getEmail());
-                            sideNavHeaderBinding.headerUserRole.setText("Role : " + user.getRole());
+                    .addSnapshotListener((documentSnapshot, error) -> {
 
-                            if (user.getRole().equals("pharmacist")){
-                                sideNavHeaderBinding.headerUserRole.
-                                        setBackgroundTintList
-                                                (ColorStateList.valueOf(getColor( R.color.md_theme_tertiaryFixed_mediumContrast)));
+                        if (error != null) {
+                            Log.e("Firestore", "Error listening to user data", error);
+                            return;
+                        }
+
+                        if (documentSnapshot != null && documentSnapshot.exists()) {
+                            User user = documentSnapshot.toObject(User.class);
+
+                            if (user != null) {
+                                sideNavHeaderBinding.headerUserName.setText(user.getName());
+                                sideNavHeaderBinding.headerUserEmail.setText(user.getEmail());
+                                sideNavHeaderBinding.headerUserRole.setText("Role : " + user.getRole());
+
+                                if ("pharmacist".equals(user.getRole())) {
+                                    sideNavHeaderBinding.headerUserRole.
+                                            setBackgroundTintList
+                                                    (ColorStateList.valueOf(getColor(R.color.md_theme_tertiaryFixed_mediumContrast)));
+                                }
                             }
 
                             String profileImageUrl = documentSnapshot.getString("profileImage");
@@ -140,10 +156,8 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                             }
 
                         } else {
-                            Log.e("Firestore", "document does not exist");
+                            Log.e("Firestore", "User document does not exist");
                         }
-                    }).addOnFailureListener(e -> {
-                        Log.e("Firestore", "Error getting user data" + e.getMessage());
                     });
 
             sidenavigationView.getMenu().findItem(R.id.side_nav_login).setVisible(false);
@@ -151,76 +165,68 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
             sideNavHeaderBinding.headerProfilePic.setOnClickListener(v -> {
                 loadFragment(new ProfileFragment());
+                if (drawerLayout.isDrawerOpen(GravityCompat.START))
+                    drawerLayout.closeDrawer(GravityCompat.START);
             });
-
-
         }
 
-        // 1. Prepare the Global Loading Dialog
-        // Notice we use 'this' instead of 'requireContext()' in an Activity!
-        syncDialog = new android.app.Dialog(this);
+        //Global Loading Dialog
+        syncDialog = new Dialog(this);
         syncDialog.setContentView(R.layout.dialog_syncing);
-        syncDialog.getWindow().setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
+        syncDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         syncDialog.setCancelable(false);
 
-        // 2. Watch the Background Worker globally!
-        // Notice we use 'this' instead of 'getViewLifecycleOwner()' in an Activity!
-        androidx.work.WorkManager.getInstance(this)
+        //Watch the Background Worker globally
+        WorkManager.getInstance(this)
                 .getWorkInfosForUniqueWorkLiveData("CartSyncJob")
                 .observe(this, workInfos -> {
                     if (workInfos == null || workInfos.isEmpty()) return;
 
-                    androidx.work.WorkInfo workInfo = workInfos.get(0);
+                    WorkInfo workInfo = workInfos.get(0);
 
-                    if (workInfo.getState() == androidx.work.WorkInfo.State.RUNNING) {
+                    if (workInfo.getState() == WorkInfo.State.RUNNING) {
                         if (!syncDialog.isShowing()) syncDialog.show();
 
-                    } else if (workInfo.getState() == androidx.work.WorkInfo.State.SUCCEEDED) {
+                    } else if (workInfo.getState() == WorkInfo.State.SUCCEEDED) {
                         if (syncDialog.isShowing()) {
                             syncDialog.dismiss();
-                            android.widget.Toast.makeText(this, "Cart synced securely!", android.widget.Toast.LENGTH_SHORT).show();
+                            Toast.makeText(this, "Cart synced securely!", Toast.LENGTH_SHORT).show();
                         }
-
-                    } else if (workInfo.getState() == androidx.work.WorkInfo.State.FAILED || workInfo.getState() == androidx.work.WorkInfo.State.CANCELLED) {
+                    } else if (workInfo.getState() == WorkInfo.State.FAILED || workInfo.getState() == WorkInfo.State.CANCELLED) {
                         if (syncDialog.isShowing()) syncDialog.dismiss();
                     }
                 });
 
-        unlockPharmacistToolsIfAuthorized();
-
+        //generate token for messaging
         generateAndSaveFCMToken();
 
-
+        //check user or pharmacist
         startSilentRoleSync();
+        unlockPharmacistToolsIfAuthorized();
 
     }
 
-    // Call this method inside your onViewCreated() or onCreate()
+
     private void generateAndSaveFCMToken() {
-        com.google.firebase.auth.FirebaseUser currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
+        FirebaseUser currentUser = firebaseAuth.getCurrentUser();
         if (currentUser == null) return;
 
-        com.google.firebase.messaging.FirebaseMessaging.getInstance().getToken()
+        FirebaseMessaging.getInstance().getToken()
                 .addOnCompleteListener(task -> {
                     if (!task.isSuccessful()) {
-                        android.util.Log.w("FCM", "Fetching FCM registration token failed", task.getException());
+                        Log.w("FCM", "Fetching FCM registration token failed", task.getException());
                         return;
                     }
-
-                    // Get new FCM registration token
                     String token = task.getResult();
 
-                    // Save it to the users collection in Firestore
-                    com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    FirebaseFirestore.getInstance()
                             .collection("users")
                             .document(currentUser.getUid())
                             .update("fcmToken", token)
-                            .addOnSuccessListener(aVoid -> android.util.Log.d("FCM", "Token saved successfully!"))
-                            .addOnFailureListener(e -> android.util.Log.e("FCM", "Failed to save token: " + e.getMessage()));
+                            .addOnSuccessListener(aVoid -> Log.d("FCM", "Token saved successfully!"))
+                            .addOnFailureListener(e -> Log.e("FCM", "Failed to save token: " + e.getMessage()));
                 });
     }
-
-
 
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
@@ -316,12 +322,11 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
     private void loadFragment(Fragment fragment) {
         FragmentManager fragmentManager = getSupportFragmentManager();
         FragmentTransaction transition = fragmentManager.beginTransaction();
-        //thiyana fragment eka ain karala auth fragment eka load wenna oni nisa thamai repalce eka damme nathAM DANNE ADD
+        //replace fragment otherwise use .add
         transition.replace(R.id.fragment_container, fragment);
         transition.commit();
 
     }
-
 
     private void unlockPharmacistToolsIfAuthorized() {
         FirebaseUser currentUser = firebaseAuth.getCurrentUser();
@@ -343,6 +348,42 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
                 .addOnFailureListener(e -> Log.e("MainActivity", "Failed to check user role", e));
     }
 
+    private void startSilentRoleSync() {
+        FirebaseUser currentUser = firebaseAuth.getCurrentUser();
+        if (currentUser == null) return;
+
+        //always checking user role
+        roleSyncListener = FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(currentUser.getUid())
+                .addSnapshotListener((documentSnapshot, e) -> {
+                    if (e != null || documentSnapshot == null || !documentSnapshot.exists()) return;
+
+                    // get current role from firebase
+                    String liveRole = documentSnapshot.getString("role");
+                    if (liveRole == null) liveRole = "user";
+
+                    //Check current role in phone
+                    SharedPreferences prefs = getSharedPreferences("MediFindPrefs", Context.MODE_PRIVATE);
+                    String localRole = prefs.getString("USER_ROLE", "user");
+
+                    //update role if change
+                    if (!liveRole.equals(localRole)) {
+                        prefs.edit().putString("USER_ROLE", liveRole).apply();
+
+                        if (liveRole.equals("pharmacist") || liveRole.equals("admin")) {
+
+                            //side nav bar tool unlock
+                            showPharmacistMenu();
+                            Toast.makeText(this, "Pharmacist Access Granted! \uD83C\uDF89", Toast.LENGTH_LONG).show();
+                        } else {
+                            //side nav tool hide
+                            hidePharmacistMenu();
+                        }
+                    }
+                });
+    }
+
     private void showPharmacistMenu() {
         NavigationView navigationView = binding.sideNavigationView;
         Menu menu = navigationView.getMenu();
@@ -352,46 +393,6 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         menu.findItem(R.id.side_nav_prescription).setVisible(true);
     }
 
-
-    // ==========================================
-    // --- BACKGROUND ROLE SYNC ---
-    // ==========================================
-    private void startSilentRoleSync() {
-        com.google.firebase.auth.FirebaseUser currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser == null) return;
-
-        // Attach a real-time listener to the user's profile document
-        roleSyncListener = FirebaseFirestore.getInstance()
-                .collection("users")
-                .document(currentUser.getUid())
-                .addSnapshotListener((documentSnapshot, e) -> {
-                    if (e != null || documentSnapshot == null || !documentSnapshot.exists()) return;
-
-                    // 1. Grab the live role from Firebase
-                    String liveRole = documentSnapshot.getString("role");
-                    if (liveRole == null) liveRole = "user";
-
-                    // 2. Check what is currently saved on the phone
-                    android.content.SharedPreferences prefs = getSharedPreferences("MediFindPrefs", android.content.Context.MODE_PRIVATE);
-                    String localRole = prefs.getString("USER_ROLE", "user");
-
-                    // 3. IF IT CHANGED, UPDATE THE PHONE!
-                    if (!liveRole.equals(localRole)) {
-                        prefs.edit().putString("USER_ROLE", liveRole).apply();
-
-                        // 4. Update the UI instantly!
-                        if (liveRole.equals("pharmacist") || liveRole.equals("admin")) {
-                            showPharmacistMenu(); // Unlocks the side drawer tools!
-                            android.widget.Toast.makeText(this, "Pharmacist Access Granted! \uD83C\uDF89", android.widget.Toast.LENGTH_LONG).show();
-                        } else {
-                            // If they were demoted, you could hide the menu here too!
-                            hidePharmacistMenu();
-                        }
-                    }
-                });
-    }
-
-    // Helper to hide the menu if they get demoted back to a normal user
     private void hidePharmacistMenu() {
         NavigationView navigationView = findViewById(R.id.side_navigation_view);
         Menu menu = navigationView.getMenu();
@@ -400,11 +401,10 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         menu.findItem(R.id.side_nav_prescription).setVisible(false);
     }
 
-
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Clean up the dialog to prevent memory leaks if the app closes mid-sync!
+
         if (syncDialog != null && syncDialog.isShowing()) {
             syncDialog.dismiss();
         }

@@ -553,7 +553,7 @@ public class CheckoutActivity extends AppCompatActivity {
                     .orderId(orderId)
                     .userId(userId)
                     .status("Pending")
-                    .isPaid(true)
+                    .paid(true)
                     .grandTotal(subtotal + deliveryFee)
                     .deliveryMethod("Online")
                     .prescriptionUrl(checkoutPrescriptionUrl)

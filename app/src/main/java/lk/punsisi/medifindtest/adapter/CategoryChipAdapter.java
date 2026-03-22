@@ -10,7 +10,6 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
-import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.List;
@@ -22,7 +21,7 @@ public class CategoryChipAdapter extends RecyclerView.Adapter<CategoryChipAdapte
 
     private Context context;
     private List<Category> categoryList;
-    private int selectedPosition = 0; // "All" will be index 0, so it starts selected!
+    private int selectedPosition = 0;
     private OnChipClickListener listener;
 
     public interface OnChipClickListener {
@@ -47,30 +46,25 @@ public class CategoryChipAdapter extends RecyclerView.Adapter<CategoryChipAdapte
         Category category = categoryList.get(position);
         holder.tvChipName.setText(category.getName());
 
-        // ==========================================
-        // UI MAGIC: Recolor based on selection!
-        // ==========================================
         if (position == selectedPosition) {
-            // SELECTED: Primary Green Background, White Text
-            holder.tvChipName.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#4CAF50"))); // Replace with your primary color hex if needed
+
+            holder.tvChipName.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#4CAF50")));
             holder.tvChipName.setTextColor(Color.WHITE);
         } else {
-            // UNSELECTED: Light Grey Background, Black Text
+
             holder.tvChipName.setBackgroundTintList(ColorStateList.valueOf(Color.parseColor("#F5F5F5")));
             holder.tvChipName.setTextColor(Color.BLACK);
         }
 
-        // Handle Click
-        holder.itemView.setOnClickListener(v -> {
-            // Update the selected position
-            int previousPosition = selectedPosition;
-            selectedPosition = position; // Needs to be exact position from adapter
 
-            // Tell the RecyclerView to redraw ONLY the two chips that changed colors (saves battery!)
+        holder.itemView.setOnClickListener(v -> {
+
+            int previousPosition = selectedPosition;
+            selectedPosition = position;
+
             notifyItemChanged(previousPosition);
             notifyItemChanged(selectedPosition);
 
-            // Pass the category back to HomeFragment
             listener.onChipClick(category);
         });
     }

@@ -28,7 +28,6 @@ public class AllCategoriesActivity extends AppCompatActivity {
     private FirebaseFirestore firebaseFirestore;
     private CategoryAdapter adapter;
 
-    // --- PAGINATION VARIABLES ---
     private List<Category> fullCategoryList = new ArrayList<>();
     private int currentPage = 1;
     private final int ITEMS_PER_PAGE = 6;
@@ -41,21 +40,18 @@ public class AllCategoriesActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_all_categories);
 
-        // 1. Setup Toolbar
         MaterialToolbar toolbar = findViewById(R.id.toolbar_all_categories);
         setSupportActionBar(toolbar);
         toolbar.setNavigationOnClickListener(v -> finish());
 
-        // 2. Setup RecyclerView
         rvAllCategories = findViewById(R.id.rv_all_categories);
         rvAllCategories.setLayoutManager(new GridLayoutManager(this, 2));
 
-        // 3. Setup Pagination UI Components
         btnPrev = findViewById(R.id.btn_page_prev);
         btnNext = findViewById(R.id.btn_page_next);
         tvPageIndicator = findViewById(R.id.tv_page_info);
 
-        // 4. Handle Previous Button Click
+        //pagination previous button
         btnPrev.setOnClickListener(v -> {
             if (currentPage > 1) {
                 currentPage--;
@@ -63,7 +59,7 @@ public class AllCategoriesActivity extends AppCompatActivity {
             }
         });
 
-        // 5. Handle Next Button Click
+        //pagination next button
         btnNext.setOnClickListener(v -> {
             int totalPages = (int) Math.ceil((double) fullCategoryList.size() / ITEMS_PER_PAGE);
             if (currentPage < totalPages) {
@@ -72,15 +68,11 @@ public class AllCategoriesActivity extends AppCompatActivity {
             }
         });
 
-        // 6. Initialize Firebase & Data
         firebaseFirestore = FirebaseFirestore.getInstance();
         loadCategoriesFromRoom();
         syncCategoriesWithFirebase();
     }
 
-    // ==========================================
-    // --- 1. FAST LOCAL LOAD ---
-    // ==========================================
     private void loadCategoriesFromRoom() {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(() -> {
@@ -88,23 +80,16 @@ public class AllCategoriesActivity extends AppCompatActivity {
             List<Category> allCategoriesList = db.categoryDao().getAllCategories();
 
             runOnUiThread(() -> {
-                // Save the full list of data globally
                 fullCategoryList = allCategoriesList;
 
-                // If the user just opened the screen, reset to page 1
                 if (fullCategoryList.size() > 0 && currentPage == 0) {
                     currentPage = 1;
                 }
-
-                // Slice the data and update the screen!
                 updatePaginationUI();
             });
         });
     }
 
-    // ==========================================
-    // --- 2. PAGINATION SLICER MAGIC ---
-    // ==========================================
     private void updatePaginationUI() {
         if (fullCategoryList == null || fullCategoryList.isEmpty()) {
             tvPageIndicator.setText("Page 1 of 1");
@@ -113,34 +98,25 @@ public class AllCategoriesActivity extends AppCompatActivity {
             return;
         }
 
-        // Calculate total pages
         int totalItems = fullCategoryList.size();
         int totalPages = (int) Math.ceil((double) totalItems / ITEMS_PER_PAGE);
 
-        // Safety check to ensure we don't go out of bounds
         if (currentPage > totalPages) currentPage = totalPages;
         if (currentPage < 1) currentPage = 1;
 
-        // Figure out exactly which 6 items to grab from the main list
         int startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
         int endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems);
 
-        // Slice the list!
         List<Category> pageItems = fullCategoryList.subList(startIndex, endIndex);
 
-        // Give ONLY those 6 items to the adapter
         adapter = new CategoryAdapter(AllCategoriesActivity.this, pageItems, true);
         rvAllCategories.setAdapter(adapter);
 
-        // Update the Bottom Bar Text and Buttons
         tvPageIndicator.setText("Page " + currentPage + " of " + totalPages);
-        btnPrev.setEnabled(currentPage > 1);  // Disable "Prev" if on Page 1
-        btnNext.setEnabled(currentPage < totalPages); // Disable "Next" if on Last Page
+        btnPrev.setEnabled(currentPage > 1);
+        btnNext.setEnabled(currentPage < totalPages);
     }
 
-    // ==========================================
-    // --- 3. FIREBASE BACKGROUND SYNC ---
-    // ==========================================
     private void syncCategoriesWithFirebase() {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.execute(() -> {
@@ -156,7 +132,7 @@ public class AllCategoriesActivity extends AppCompatActivity {
                                 List<Category> newCategories = queryDocumentSnapshots.toObjects(Category.class);
                                 executor.execute(() -> {
                                     db.categoryDao().insertCategories(newCategories);
-                                    loadCategoriesFromRoom(); // This will auto-refresh the current page!
+                                    loadCategoriesFromRoom();
                                 });
                             }
                         });

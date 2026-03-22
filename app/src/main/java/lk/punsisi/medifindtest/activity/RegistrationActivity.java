@@ -62,7 +62,7 @@ public class RegistrationActivity extends AppCompatActivity {
             }
         });
 
-        //meka damme natham athin addata uda thiyana tab eke select wela thiyana tab eka maru wenne na
+
         viewPager2.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
             public void onPageSelected(int position) {
@@ -75,7 +75,7 @@ public class RegistrationActivity extends AppCompatActivity {
 
     public void switchToTab(int tabIndex) {
         if (binding.viewPager2 != null) {
-            // tabIndex 0 = Sign In, tabIndex 1 = Sign Up
+
             binding.viewPager2.setCurrentItem(tabIndex, true);
         }
     }

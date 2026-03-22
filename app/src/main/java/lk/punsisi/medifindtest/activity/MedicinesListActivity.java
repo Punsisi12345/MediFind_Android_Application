@@ -3,9 +3,11 @@ package lk.punsisi.medifindtest.activity;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -16,10 +18,12 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.google.android.material.appbar.AppBarLayout;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.imageview.ShapeableImageView;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
@@ -39,35 +43,28 @@ public class MedicinesListActivity extends AppCompatActivity {
 
     private boolean isAllMedicines = false;
 
-    // 👉 NEW: Pharmacy Storefront Variables
     private boolean isPharmacyStore = false;
     private String targetPharmacyId;
 
-    // UI Variables
     private RecyclerView rvMedicines;
     private RecyclerView rvCategoryChips;
     private MedicineAdapter adapter;
     private CategoryChipAdapter chipAdapter;
 
-    // Search & Filter UI
     private EditText etSearch;
     private ImageButton btnFilter;
 
-    // Pagination UI
     private MaterialButton btnPrev, btnNext;
     private TextView tvPageIndicator;
 
-    // 👉 NEW: Pharmacy Header UI
     private MaterialCardView cardPharmacyHeader;
     private ShapeableImageView ivPharmacyLogo;
     private TextView tvHeaderName, tvHeaderAddress, tvHeaderPhone;
 
-    // Data Lists
     private List<Medicine> fullMedicineList = new ArrayList<>();
     private List<Medicine> filteredMedicineList = new ArrayList<>();
     private List<Category> categoryChipsList = new ArrayList<>();
 
-    // State Variables
     private int currentPage = 1;
     private final int ITEMS_PER_PAGE = 6;
     private String currentSort = "A-Z";
@@ -77,29 +74,25 @@ public class MedicinesListActivity extends AppCompatActivity {
     private String categoryId;
     private String categoryName;
 
-    private android.widget.LinearLayout layoutEmptyState;
+    private LinearLayout layoutEmptyState;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_medicines_list);
 
-        // 1. Get Data from Intent
         categoryId = getIntent().getStringExtra("CATEGORY_ID");
         categoryName = getIntent().getStringExtra("CATEGORY_NAME");
         isAllMedicines = getIntent().getBooleanExtra("IS_ALL_MEDICINES", false);
 
-        // 👉 NEW: Catch the Pharmacy Storefront flags!
         isPharmacyStore = getIntent().getBooleanExtra("IS_PHARMACY_STORE", false);
         targetPharmacyId = getIntent().getStringExtra("PHARMACY_ID");
 
-        // 2. Setup Toolbar
         MaterialToolbar toolbar = findViewById(R.id.toolbar_medicines);
         setSupportActionBar(toolbar);
         toolbar.setTitle(categoryName != null ? categoryName : "Medicines");
         toolbar.setNavigationOnClickListener(v -> finish());
 
-        // 3. Initialize UI Elements
         rvMedicines = findViewById(R.id.rv_medicines);
         rvMedicines.setLayoutManager(new GridLayoutManager(this, 2));
         rvCategoryChips = findViewById(R.id.rv_search_categories_list);
@@ -112,37 +105,27 @@ public class MedicinesListActivity extends AppCompatActivity {
 
         layoutEmptyState = findViewById(R.id.layout_empty_state);
 
-        // 👉 NEW: Initialize Pharmacy Header Elements
         cardPharmacyHeader = findViewById(R.id.card_pharmacy_header);
         ivPharmacyLogo = findViewById(R.id.iv_pharmacy_logo);
         tvHeaderName = findViewById(R.id.tv_header_pharmacy_name);
         tvHeaderAddress = findViewById(R.id.tv_header_pharmacy_address);
         tvHeaderPhone = findViewById(R.id.tv_header_pharmacy_phone);
 
-        // 4. Setup Logic
         setupSearchAndFilter();
         setupPaginationListeners();
 
-        // 👉 UPDATED: Route the setup based on the mode
         if (isPharmacyStore) {
             setupPharmacyStorefront();
-            setupCategoryChips(); // Load the chips for the pharmacy too!
+            setupCategoryChips();
         } else if (isAllMedicines) {
-            setupCategoryChips(); // Load the chips for the global list
+            setupCategoryChips();
         } else {
-            rvCategoryChips.setVisibility(View.GONE); // Hide them if it's just a single category view
+            rvCategoryChips.setVisibility(View.GONE);
         }
 
-        // 5. Load Data
         loadMedicinesFromRoom();
     }
 
-    // ==========================================
-    // --- 👉 NEW: PHARMACY STOREFRONT LOGIC ---
-    // ==========================================
-    // ==========================================
-    // --- 👉 PHARMACY STOREFRONT LOGIC ---
-    // ==========================================
     private void setupPharmacyStorefront() {
         if (targetPharmacyId == null) {
             Toast.makeText(this, "Pharmacy ID missing", Toast.LENGTH_SHORT).show();
@@ -150,23 +133,20 @@ public class MedicinesListActivity extends AppCompatActivity {
             return;
         }
 
-        // 👉 NEW: Hide the standard Toolbar and show the Pharmacy Header!
-        com.google.android.material.appbar.AppBarLayout appBarLayout = findViewById(R.id.appBarLayout);
+        // hide toolbar and show pharmacy details
+        AppBarLayout appBarLayout = findViewById(R.id.appBarLayout);
         appBarLayout.setVisibility(View.GONE);
         cardPharmacyHeader.setVisibility(View.VISIBLE);
 
-
-        // 👉 NEW: Setup the custom white back button inside the header
         ImageButton btnPharmacyBack = findViewById(R.id.btn_pharmacy_back);
         btnPharmacyBack.setOnClickListener(v -> finish());
 
-        // Fetch the beautiful details from Firestore!
         FirebaseFirestore.getInstance().collection("pharmacist_requests")
                 .whereEqualTo("uid", targetPharmacyId)
                 .get()
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     if (!queryDocumentSnapshots.isEmpty()) {
-                        com.google.firebase.firestore.DocumentSnapshot doc = queryDocumentSnapshots.getDocuments().get(0);
+                        DocumentSnapshot doc = queryDocumentSnapshots.getDocuments().get(0);
 
                         String pName = doc.getString("pharmacyName");
                         String pAddress = doc.getString("pharmacyAddress");
@@ -193,16 +173,10 @@ public class MedicinesListActivity extends AppCompatActivity {
                     }
                 })
                 .addOnFailureListener(e -> {
-                    android.util.Log.e("Storefront", "Failed to load pharmacy details", e);
+                    Log.e("Storefront", "Failed to load pharmacy details", e);
                 });
     }
 
-    // ==========================================
-    // --- CATEGORY CHIP LOGIC ---
-    // ==========================================
-    // ==========================================
-    // --- CATEGORY CHIP LOGIC ---
-    // ==========================================
     private void setupCategoryChips() {
         rvCategoryChips.setVisibility(View.VISIBLE);
         rvCategoryChips.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
@@ -232,11 +206,8 @@ public class MedicinesListActivity extends AppCompatActivity {
         chipAdapter.notifyDataSetChanged();
     }
 
-    // ==========================================
-    // --- 👉 UPDATED: DATA LOADING ---
-    // ==========================================
     private void loadMedicinesFromRoom() {
-        // If it's not a global search, not a category, and not a pharmacy... abort!
+
         if (!isAllMedicines && categoryId == null && !isPharmacyStore) return;
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -245,8 +216,8 @@ public class MedicinesListActivity extends AppCompatActivity {
             List<Medicine> dbList;
 
             if (isPharmacyStore) {
-                // 👉 NEW: Fetch ONLY medicines belonging to this specific pharmacy!
-                dbList = db.medicineDao().getAllActiveMedicines(); // We pull all, then filter below
+                // Fetch ONLY medicines belonging to this specific pharmacy!
+                dbList = db.medicineDao().getAllActiveMedicines();
             } else if (isAllMedicines) {
                 dbList = db.medicineDao().getAllActiveMedicines();
             } else {
@@ -272,9 +243,6 @@ public class MedicinesListActivity extends AppCompatActivity {
         });
     }
 
-    // ==========================================
-    // --- SEARCH & SORT LISTENERS ---
-    // ==========================================
     private void setupSearchAndFilter() {
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override
@@ -305,15 +273,11 @@ public class MedicinesListActivity extends AppCompatActivity {
         });
     }
 
-    // ==========================================
-    // --- FILTER & SORT LOGIC ---
-    // ==========================================
     private void applyFiltersAndSort() {
         filteredMedicineList.clear();
 
         for (Medicine medicine : fullMedicineList) {
             boolean matchesCategory = true;
-            // 👉 UPDATED: Apply chip filters for BOTH Global Search AND Pharmacy Storefronts!
             if (isAllMedicines || isPharmacyStore) {
                 matchesCategory = currentSelectedCategoryId.equals("ALL") ||
                         (medicine.getCategoryId() != null && medicine.getCategoryId().equals(currentSelectedCategoryId));
@@ -340,9 +304,6 @@ public class MedicinesListActivity extends AppCompatActivity {
         updatePaginationUI();
     }
 
-    // ==========================================
-    // --- PAGINATION LOGIC ---
-    // ==========================================
     private void setupPaginationListeners() {
         btnPrev.setOnClickListener(v -> {
             if (currentPage > 1) {

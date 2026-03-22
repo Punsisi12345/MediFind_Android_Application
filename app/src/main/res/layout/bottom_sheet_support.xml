@@ -10,7 +10,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Help &amp; Support"
+        android:text="@string/help_amp_support"
         android:textSize="22sp"
         android:textStyle="bold"
         android:textColor="@android:color/black"
@@ -19,7 +19,7 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Need assistance? If you have questions about your account, orders, or pharmacy registration, please reach out to our administration team."
+        android:text="@string/assistance_help"
         android:textSize="14sp"
         android:textColor="#424242"
         android:layout_marginBottom="24dp"/>
@@ -33,6 +33,7 @@
         android:padding="8dp">
 
         <ImageView
+            android:id="@+id/call_icon"
             android:layout_width="28dp"
             android:layout_height="28dp"
             android:src="@drawable/baseline_local_phone_24"
@@ -46,13 +47,14 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Call Us (Mon-Fri, 9AM-5PM)"
+                android:text="@string/call_us"
                 android:textSize="12sp"
                 android:textColor="#757575"/>
             <TextView
+                android:id="@+id/phone_number"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="+94 77 123 4567"
+                android:text="@string/support_telephone_number"
                 android:textSize="16sp"
                 android:textColor="@android:color/black"
                 android:textStyle="bold"/>
@@ -68,6 +70,7 @@
         android:padding="8dp">
 
         <ImageView
+            android:id="@+id/email_icon"
             android:layout_width="28dp"
             android:layout_height="28dp"
             android:src="@drawable/baseline_email_24"
@@ -85,6 +88,7 @@
                 android:textSize="12sp"
                 android:textColor="#757575"/>
             <TextView
+                android:id="@+id/email"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="admin@medifind.lk"

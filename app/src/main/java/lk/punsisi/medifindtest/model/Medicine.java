@@ -35,7 +35,8 @@ public class Medicine {
     private boolean requiresPrescription;
 
     private String pharmacistId; // The user's UID
-    private String pharmacyName; // Fetched from the request collection
+    private String pharmacyName;
+    private String source = "pharmacist";
 
     // Required for Offline Sync & Data Integrity
     private long lastUpdated;

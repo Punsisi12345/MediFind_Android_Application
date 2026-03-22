@@ -10,7 +10,7 @@ import lk.punsisi.medifindtest.model.Category;
 import lk.punsisi.medifindtest.model.Medicine; // Import Medicine!
 
 // 1 & 2. Add Medicine.class and change version to 2
-@Database(entities = {Category.class, Medicine.class, CartItem.class}, version = 7, exportSchema = false)
+@Database(entities = {Category.class, Medicine.class, CartItem.class}, version = 8, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
 
     public abstract CategoryDao categoryDao();

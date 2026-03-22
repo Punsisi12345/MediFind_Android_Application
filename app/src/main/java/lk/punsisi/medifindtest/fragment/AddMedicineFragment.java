@@ -45,7 +45,6 @@ import lk.punsisi.medifindtest.room.AppDatabase;
 import lk.punsisi.medifindtest.room.CategoryDao;
 import lk.punsisi.medifindtest.room.MedicineDao;
 
-
 public class AddMedicineFragment extends Fragment {
 
     private FragmentAddMedicineBinding binding;
@@ -57,7 +56,6 @@ public class AddMedicineFragment extends Fragment {
     private CategoryDao categoryDao;
     private ExecutorService executorService;
 
-    // State Variables
     private Uri selectedImageUri = null;
     private String currentPharmacyName = "Unknown Pharmacy";
     private String selectedCategoryId = null;

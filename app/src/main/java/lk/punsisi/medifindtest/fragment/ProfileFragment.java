@@ -39,12 +39,17 @@ import java.util.Map;
 import lk.punsisi.medifindtest.R;
 import lk.punsisi.medifindtest.activity.MainActivity;
 import lk.punsisi.medifindtest.activity.RegistrationActivity;
+import lk.punsisi.medifindtest.databinding.BottomSheetDeliveryAddressBinding;
+import lk.punsisi.medifindtest.databinding.BottomSheetPharmacistRequestBinding;
+import lk.punsisi.medifindtest.databinding.BottomSheetSupportBinding;
 import lk.punsisi.medifindtest.databinding.FragmentProfileBinding;
+import lk.punsisi.medifindtest.model.DeliveryAddress;
 import lk.punsisi.medifindtest.model.User;
 
 public class ProfileFragment extends Fragment {
 
     private FragmentProfileBinding binding;
+
     private FirebaseAuth firebaseAuth;
     private FirebaseFirestore firebaseFirestore;
     private FirebaseStorage firebaseStorage;
@@ -57,12 +62,11 @@ public class ProfileFragment extends Fragment {
             registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
                 if (uri != null) {
 
-                    // FIX: Never use setImageURI with the modern PhotoPicker! Use Glide.
                     Glide.with(requireContext())
                             .load(uri)
                             .into(binding.imgProfilePicture);
 
-                    // Start uploading it to Firebase behind the scenes
+                    // profile image upload to firebase
                     uploadImageToFirebaseStorage(uri);
                 } else {
                     Log.d("PhotoPicker", "No media selected");
@@ -96,8 +100,8 @@ public class ProfileFragment extends Fragment {
         // Check if user is logged in
         if (firebaseAuth.getCurrentUser() != null) {
             currentUserId = firebaseAuth.getCurrentUser().getUid();
-            loadUserProfile();
 
+            loadUserProfile();
 
             binding.menuLogout.setOnClickListener(v -> {
 
@@ -135,30 +139,29 @@ public class ProfileFragment extends Fragment {
 
         }
 
-        // --- BUTTON CLICK LISTENERS ---
 
-        // 1. Edit Name Button
+        //edit name
         binding.btnEditName.setOnClickListener(v -> showEditNameDialog());
 
-        // 2. Upgrade to Pharmacist Button
+        //become pharmacist
         binding.cardUpgradePharmacist.setOnClickListener(v -> showPharmacistRequestBottomSheet());
 
+        //change profile image
         binding.cardEditPicture.setOnClickListener(v -> {
             pickMedia.launch(new PickVisualMediaRequest.Builder()
                     .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE)
                     .build());
         });
 
+        //add delivery address
         binding.menuDelivaryAddress.setOnClickListener(v -> showDeliveryAddressBottomSheet());
 
+        //support menu load
         binding.menuSupport.setOnClickListener(v -> showSupportBottomSheet());
 
 
     }
 
-    // ==========================================
-    // --- LOAD DATA LOGIC ---
-    // ==========================================
     private void loadUserProfile() {
         firebaseFirestore.collection("users").document(currentUserId)
                 .get()
@@ -173,15 +176,14 @@ public class ProfileFragment extends Fragment {
                                 binding.tvProfileRole.setText(user.getRole());
                             }
 
-
                             binding.menuDelivaryAddress.setCompoundDrawablePadding(32);
 
                             if (documentSnapshot.contains("deliveryAddress") && documentSnapshot.get("deliveryAddress") != null) {
-                                // If it exists: Show Green Check on the left, Arrow on the right
+
                                 binding.menuDelivaryAddress.setCompoundDrawablesWithIntrinsicBounds(
                                         R.drawable.ic_status_complete, 0, R.drawable.baseline_arrow_forward_ios_24, 0);
                             } else {
-                                // If missing: Show Yellow Warning on the left, Arrow on the right
+
                                 binding.menuDelivaryAddress.setCompoundDrawablesWithIntrinsicBounds(
                                         R.drawable.ic_status_missing, 0, R.drawable.baseline_arrow_forward_ios_24, 0);
                             }
@@ -201,24 +203,19 @@ public class ProfileFragment extends Fragment {
                 .addOnFailureListener(e -> Log.e("Profile", "Error loading profile", e));
     }
 
-
-    // ==========================================
-    // --- FIREBASE STORAGE UPLOAD LOGIC ---
-    // ==========================================
     private void uploadImageToFirebaseStorage(Uri imageUri) {
         Toast.makeText(requireContext(), "Uploading Profile Picture...", Toast.LENGTH_SHORT).show();
 
-        // Create a folder called 'profile_images' and name the file with their specific User ID
-        StorageReference fileReference = firebaseStorage.getInstance().getReference()
+        StorageReference fileReference = firebaseStorage.getReference()
                 .child("profile_images/" + currentUserId + ".jpg");
 
         fileReference.putFile(imageUri)
                 .addOnSuccessListener(taskSnapshot -> {
-                    // Once uploaded, we need to ask Firebase for the public URL to view the image
+
                     fileReference.getDownloadUrl().addOnSuccessListener(uri -> {
                         String downloadUrl = uri.toString();
 
-                        // Save that public URL to their Firestore profile!
+                        //upload profile image to firebase storage
                         saveImageUrlToFirestore(downloadUrl);
                     });
                 })
@@ -236,10 +233,6 @@ public class ProfileFragment extends Fragment {
                 .addOnFailureListener(e -> Log.e("Profile", "Error saving image URL", e));
     }
 
-
-    // ==========================================
-    // --- EDIT NAME LOGIC ---
-    // ==========================================
     private void showEditNameDialog() {
         EditText input = new EditText(requireContext());
         input.setHint("Enter new name");
@@ -269,40 +262,27 @@ public class ProfileFragment extends Fragment {
                 .addOnFailureListener(e -> Toast.makeText(requireContext(), "Failed to update name", Toast.LENGTH_SHORT).show());
     }
 
-    // ==========================================
-    // --- PHARMACIST REQUEST LOGIC ---
-    // ==========================================
     private void showPharmacistRequestBottomSheet() {
-        // Reset the URI every time the sheet opens
+
         selectedLogoUri = null;
 
-        com.google.android.material.bottomsheet.BottomSheetDialog bottomSheetDialog = new com.google.android.material.bottomsheet.BottomSheetDialog(requireContext());
-        View bottomSheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_pharmacist_request, null);
-        bottomSheetDialog.setContentView(bottomSheetView);
+        BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
+        BottomSheetPharmacistRequestBinding sheetBinding = BottomSheetPharmacistRequestBinding.inflate(getLayoutInflater());
+        bottomSheetDialog.setContentView(sheetBinding.getRoot());
 
-        // Bind Inputs
-        activeLogoImageView = bottomSheetView.findViewById(R.id.iv_pharmacy_logo_picker);
-        TextInputEditText etFullName = bottomSheetView.findViewById(R.id.et_full_name);
-        com.google.android.material.textfield.TextInputEditText etSlmcNumber = bottomSheetView.findViewById(R.id.et_slmc_number);
-        com.google.android.material.textfield.TextInputEditText etPharmacyName = bottomSheetView.findViewById(R.id.et_pharmacy_name);
-        com.google.android.material.textfield.TextInputEditText etNmraLicense = bottomSheetView.findViewById(R.id.et_nmra_license);
-        com.google.android.material.textfield.TextInputEditText etPharmacyAddress = bottomSheetView.findViewById(R.id.et_pharmacy_address);
-        com.google.android.material.textfield.TextInputEditText etTelephoneNumber = bottomSheetView.findViewById(R.id.et_telephone_number);
-        com.google.android.material.button.MaterialButton btnSubmit = bottomSheetView.findViewById(R.id.btn_submit_request);
+        activeLogoImageView = sheetBinding.ivPharmacyLogoPicker;
 
-        // 👉 Open Gallery when clicking the logo placeholder
         activeLogoImageView.setOnClickListener(v -> imagePickerLauncher.launch("image/*"));
 
-        btnSubmit.setOnClickListener(v -> {
-            String fullName = etFullName.getText().toString().trim();
-            String slmc = etSlmcNumber.getText().toString().trim();
-            String pharmacyName = etPharmacyName.getText().toString().trim();
-            String nmra = etNmraLicense.getText().toString().trim();
-            String address = etPharmacyAddress.getText().toString().trim();
-            String telephone = etTelephoneNumber.getText().toString().trim();
+        sheetBinding.btnSubmitRequest.setOnClickListener(v -> {
 
+            String fullName = sheetBinding.etFullName.getText().toString().trim();
+            String slmc = sheetBinding.etSlmcNumber.getText().toString().trim();
+            String pharmacyName = sheetBinding.etPharmacyName.getText().toString().trim();
+            String nmra = sheetBinding.etNmraLicense.getText().toString().trim();
+            String address = sheetBinding.etPharmacyAddress.getText().toString().trim();
+            String telephone = sheetBinding.etTelephoneNumber.getText().toString().trim();
 
-            // 1. Validate Inputs AND Image
             if (selectedLogoUri == null) {
                 Toast.makeText(requireContext(), "Please upload a pharmacy logo", Toast.LENGTH_SHORT).show();
                 return;
@@ -312,27 +292,26 @@ public class ProfileFragment extends Fragment {
                 return;
             }
 
-            btnSubmit.setText("Uploading Logo...");
-            btnSubmit.setEnabled(false);
+            sheetBinding.btnSubmitRequest.setText("Uploading Logo...");
+            sheetBinding.btnSubmitRequest.setEnabled(false);
 
-            // 2. Upload Image to Firebase Storage First
             com.google.firebase.storage.StorageReference logoRef = com.google.firebase.storage.FirebaseStorage.getInstance()
                     .getReference().child("pharmacy_logos/" + currentUserId + ".jpg");
 
             logoRef.putFile(selectedLogoUri)
                     .addOnSuccessListener(taskSnapshot -> {
-                        // 3. Get Download URL
+
                         logoRef.getDownloadUrl().addOnSuccessListener(uri -> {
-                            // 4. Proceed to save database (Pass the URL!)
+
                             savePharmacistRequestToDatabase(
-                                    fullName, slmc, pharmacyName,telephone, nmra, address, uri.toString(),
-                                    bottomSheetDialog,btnSubmit
+                                    fullName, slmc, pharmacyName, telephone, nmra, address, uri.toString(),
+                                    bottomSheetDialog, sheetBinding.btnSubmitRequest
                             );
                         });
                     })
                     .addOnFailureListener(e -> {
-                        btnSubmit.setText("Submit Request");
-                        btnSubmit.setEnabled(true);
+                        sheetBinding.btnSubmitRequest.setText("Submit Request");
+                        sheetBinding.btnSubmitRequest.setEnabled(true);
                         Toast.makeText(requireContext(), "Image Upload Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     });
         });
@@ -340,8 +319,7 @@ public class ProfileFragment extends Fragment {
         bottomSheetDialog.show();
     }
 
-    // Extracted database logic to keep the code clean
-    private void savePharmacistRequestToDatabase(String fullName, String slmc, String pharmacyName,String telephone, String nmra,
+    private void savePharmacistRequestToDatabase(String fullName, String slmc, String pharmacyName, String telephone, String nmra,
                                                  String address, String profileImageUrl, BottomSheetDialog dialog, MaterialButton btnSubmit) {
 
         btnSubmit.setText("Saving Data...");
@@ -353,25 +331,23 @@ public class ProfileFragment extends Fragment {
         requestData.put("pharmacyName", pharmacyName);
         requestData.put("nmraLicenseNumber", nmra);
         requestData.put("pharmacyAddress", address);
-        requestData.put("profileImage", profileImageUrl); // 👉 Include the logo URL!
+        requestData.put("profileImage", profileImageUrl);
         requestData.put("status", "pending");
         requestData.put("telephone", telephone);
         requestData.put("timestamp", System.currentTimeMillis());
 
-        com.google.firebase.firestore.WriteBatch batch = firebaseFirestore.batch();
+        WriteBatch batch = firebaseFirestore.batch();
 
-        // Save to 'pharmacist_requests' collection (Wait to update 'pharmacies' collection until approved)
-        com.google.firebase.firestore.DocumentReference requestRef = firebaseFirestore.collection("pharmacist_requests").document(currentUserId);
+        DocumentReference requestRef = firebaseFirestore.collection("pharmacist_requests").document(currentUserId);
         batch.set(requestRef, requestData);
 
-        // Update 'users' collection
-        com.google.firebase.firestore.DocumentReference userRef = firebaseFirestore.collection("users").document(currentUserId);
+        DocumentReference userRef = firebaseFirestore.collection("users").document(currentUserId);
         batch.update(userRef, "pharmacistRequestStatus", "pending");
 
         batch.commit()
                 .addOnSuccessListener(unused -> {
                     dialog.dismiss();
-                    showSuccessDialog(); // Your existing success dialog
+                    showSuccessDialog();
                 })
                 .addOnFailureListener(e -> {
                     btnSubmit.setText("Submit Request");
@@ -389,10 +365,6 @@ public class ProfileFragment extends Fragment {
                 .show();
     }
 
-
-    // ==========================================
-    // --- CHECK REQUEST STATUS LOGIC ---
-    // ==========================================
     private void checkPharmacistRequestStatus() {
         firebaseFirestore.collection("pharmacist_requests").document(currentUserId)
                 .get()
@@ -401,22 +373,20 @@ public class ProfileFragment extends Fragment {
                         String status = documentSnapshot.getString("status");
 
                         if ("pending".equals(status)) {
-                            // 1. Change the Card Background to a soft warning color (Light Orange/Yellow)
-                            binding.cardUpgradePharmacist.setCardBackgroundColor(android.graphics.Color.parseColor("#FFF3E0"));
 
-                            // 2. Change the text to let the user know it is processing
+                            binding.cardUpgradePharmacist.setCardBackgroundColor(Color.parseColor("#FFF3E0"));
+
                             binding.tvBecomePharmacistText.setText("Pharmacist Request Under Review");
-                            binding.tvBecomePharmacistText.setTextColor(android.graphics.Color.parseColor("#E65100")); // Dark Orange text
+                            binding.tvBecomePharmacistText.setTextColor(Color.parseColor("#E65100"));
                             binding.tvBecomePharmacistDesText.setText(status);
                             binding.tvBecomePharmacistDesText.setTextColor(Color.parseColor("#8B8000"));
 
-                            // 3. Overwrite the click listener to show a Toast instead of opening the form!
+
                             binding.cardUpgradePharmacist.setOnClickListener(v -> {
                                 Toast.makeText(requireContext(), "Your details are currently being reviewed by an Admin.", Toast.LENGTH_SHORT).show();
                             });
 
                         } else if ("approved".equals(status)) {
-                            // If they are already an approved Pharmacist, hide the upgrade card completely!
                             binding.cardUpgradePharmacist.setVisibility(View.GONE);
                         }
                     }
@@ -424,104 +394,111 @@ public class ProfileFragment extends Fragment {
                 .addOnFailureListener(e -> Log.e("Profile", "Error checking request status", e));
     }
 
-
-
-    // ==========================================
-    // --- DELIVERY ADDRESS LOGIC ---
-    // ==========================================
     private void showDeliveryAddressBottomSheet() {
         BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
-        View bottomSheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_delivery_address, null);
-        bottomSheetDialog.setContentView(bottomSheetView);
 
-        TextInputEditText etPhone = bottomSheetView.findViewById(R.id.et_phone_number);
-        TextInputEditText etLine1 = bottomSheetView.findViewById(R.id.et_address_line_1);
-        TextInputEditText etLine2 = bottomSheetView.findViewById(R.id.et_address_line_2);
-        TextInputEditText etTown = bottomSheetView.findViewById(R.id.et_home_town);
-        TextInputEditText etPostal = bottomSheetView.findViewById(R.id.et_postal_code);
-        MaterialButton btnSave = bottomSheetView.findViewById(R.id.btn_save_address);
+        BottomSheetDeliveryAddressBinding sheetBinding = BottomSheetDeliveryAddressBinding.inflate(getLayoutInflater());
+        bottomSheetDialog.setContentView(sheetBinding.getRoot());
 
-        // PRE-FILL EXISTING DATA: Check if they already have an address saved!
         firebaseFirestore.collection("users").document(currentUserId).get().addOnSuccessListener(doc -> {
             if (doc.exists() && doc.contains("deliveryAddress")) {
-                Map<String, Object> existingAddress = (Map<String, Object>) doc.get("deliveryAddress");
-                if (existingAddress != null) {
-                    etPhone.setText((String) existingAddress.get("phoneNumber"));
-                    etLine1.setText((String) existingAddress.get("addressLine1"));
-                    etLine2.setText((String) existingAddress.get("addressLine2"));
-                    etTown.setText((String) existingAddress.get("homeTown"));
-                    etPostal.setText((String) existingAddress.get("postalCode"));
+                DeliveryAddress savedAddress = doc.get("deliveryAddress", DeliveryAddress.class);
+                if (savedAddress != null) {
 
-                    btnSave.setText("Update Address");
-                    btnSave.setBackgroundColor(Color.parseColor("#FFC000"));
-                    btnSave.setTextColor(Color.parseColor("#000000"));
+                    sheetBinding.etPhoneNumber.setText(savedAddress.getPhoneNumber());
+                    sheetBinding.etAddressLine1.setText(savedAddress.getAddressLine1());
+                    sheetBinding.etAddressLine2.setText(savedAddress.getAddressLine2());
+                    sheetBinding.etHomeTown.setText(savedAddress.getHomeTown());
+                    sheetBinding.etPostalCode.setText(savedAddress.getPostalCode());
+
+                    // update button ui
+                    sheetBinding.btnSaveAddress.setText("Update Address");
+                    sheetBinding.btnSaveAddress.setBackgroundColor(Color.parseColor("#FFC000"));
+                    sheetBinding.btnSaveAddress.setTextColor(Color.parseColor("#000000"));
                 }
             }
         });
 
-        // HANDLE SAVE CLICK
-        btnSave.setOnClickListener(v -> {
-            String phone = etPhone.getText().toString().trim();
-            String line1 = etLine1.getText().toString().trim();
-            String line2 = etLine2.getText().toString().trim();
-            String town = etTown.getText().toString().trim();
-            String postal = etPostal.getText().toString().trim();
+        sheetBinding.btnSaveAddress.setOnClickListener(v -> {
+
+            String phone = sheetBinding.etPhoneNumber.getText().toString().trim();
+            String line1 = sheetBinding.etAddressLine1.getText().toString().trim();
+            String line2 = sheetBinding.etAddressLine2.getText().toString().trim();
+            String town = sheetBinding.etHomeTown.getText().toString().trim();
+            String postal = sheetBinding.etPostalCode.getText().toString().trim();
 
             if (phone.isEmpty() || line1.isEmpty() || town.isEmpty() || postal.isEmpty()) {
                 Toast.makeText(requireContext(), "Please fill all required fields", Toast.LENGTH_SHORT).show();
                 return;
             }
 
-            btnSave.setText("Saving...");
-            btnSave.setEnabled(false);
+            sheetBinding.btnSaveAddress.setText("Saving...");
+            sheetBinding.btnSaveAddress.setEnabled(false);
 
-            // Create the Address Object (Map)
-            Map<String, Object> addressData = new HashMap<>();
-            addressData.put("phoneNumber", phone);
-            addressData.put("addressLine1", line1);
-            addressData.put("addressLine2", line2);
-            addressData.put("homeTown", town);
-            addressData.put("postalCode", postal);
+            DeliveryAddress newAddress = new DeliveryAddress(phone, line1, line2, town, postal);
 
-            // Update the user's document by adding the deliveryAddress map
             firebaseFirestore.collection("users").document(currentUserId)
-                    .update("deliveryAddress", addressData)
+                    .update("deliveryAddress", newAddress)
                     .addOnSuccessListener(unused -> {
                         bottomSheetDialog.dismiss();
                         Toast.makeText(requireContext(), "Delivery Address Saved!", Toast.LENGTH_SHORT).show();
 
-                        // INSTANTLY UPDATE THE ICON TO GREEN!
                         binding.menuDelivaryAddress.setCompoundDrawablesWithIntrinsicBounds(
                                 R.drawable.ic_status_complete, 0, R.drawable.baseline_arrow_forward_ios_24, 0);
-
-
                     })
-
                     .addOnFailureListener(e -> {
-                        btnSave.setText("Save Address");
-                        btnSave.setEnabled(true);
+
+                        sheetBinding.btnSaveAddress.setText("Save Address");
+                        sheetBinding.btnSaveAddress.setEnabled(true);
                         Toast.makeText(requireContext(), "Failed to save: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     });
         });
 
         bottomSheetDialog.show();
-
     }
 
-
-
-
-    // ==========================================
-    // --- HELP & SUPPORT LOGIC ---
-    // ==========================================
     private void showSupportBottomSheet() {
         BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
-        View bottomSheetView = getLayoutInflater().inflate(R.layout.bottom_sheet_support, null);
-        bottomSheetDialog.setContentView(bottomSheetView);
 
-        // Just one button to close the sheet!
-        MaterialButton btnClose = bottomSheetView.findViewById(R.id.btn_close_support);
-        btnClose.setOnClickListener(v -> bottomSheetDialog.dismiss());
+        BottomSheetSupportBinding sheetBinding = BottomSheetSupportBinding.inflate(getLayoutInflater());
+        bottomSheetDialog.setContentView(sheetBinding.getRoot());
+
+
+        sheetBinding.btnCloseSupport.setOnClickListener(v -> bottomSheetDialog.dismiss());
+
+        // phone dialer open
+        sheetBinding.callIcon.setOnClickListener(v -> {
+
+            String phone = sheetBinding.phoneNumber.getText().toString().trim();
+
+            if (!phone.isEmpty()) {
+                Intent intent = new Intent(Intent.ACTION_DIAL);
+                intent.setData(Uri.parse("tel:" + phone));
+                startActivity(intent);
+            } else {
+                Toast.makeText(requireContext(), "Phone number not available", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // email app open
+        sheetBinding.emailIcon.setOnClickListener(v -> {
+
+            String emailAddress = sheetBinding.email.getText().toString().trim();
+
+            if (!emailAddress.isEmpty()) {
+
+                Intent intent = new Intent(Intent.ACTION_SENDTO);
+                intent.setData(Uri.parse("mailto:" + emailAddress));
+
+                //automatically set subject and text for draft mail
+                intent.putExtra(Intent.EXTRA_SUBJECT, "Support Request: MediFind App");
+                intent.putExtra(Intent.EXTRA_TEXT,
+                        "Hello MediFind Support,\n\nI am having an issue with...\n\n[App Version 1.0 | User ID: " + currentUserId + "]");
+                startActivity(intent);
+            } else {
+                Toast.makeText(requireContext(), "Email address not available", Toast.LENGTH_SHORT).show();
+            }
+        });
 
         bottomSheetDialog.show();
     }

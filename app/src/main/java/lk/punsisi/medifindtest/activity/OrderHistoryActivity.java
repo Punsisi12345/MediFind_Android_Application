@@ -2,6 +2,7 @@ package lk.punsisi.medifindtest.activity;
 
 import static java.util.Locale.getDefault;
 
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.util.Log;
@@ -71,7 +72,6 @@ public class OrderHistoryActivity extends AppCompatActivity {
 
         orderList = new ArrayList<>();
 
-        // 👉 UPDATED: Implement both click listeners
         adapter = new OrderAdapter(this, orderList, new OrderAdapter.OnOrderClickListener() {
             @Override
             public void onOrderClick(String orderId) {
@@ -93,12 +93,12 @@ public class OrderHistoryActivity extends AppCompatActivity {
     }
 
     private void showReviewBottomSheet(Order order) {
-        // Create the Bottom Sheet
+
         BottomSheetDialog dialog = new BottomSheetDialog(this);
         View view = getLayoutInflater().inflate(R.layout.bottom_sheet_add_review, null);
         dialog.setContentView(view);
 
-        // Find the views
+
         android.widget.RatingBar ratingBar = view.findViewById(R.id.rating_bar);
         com.google.android.material.textfield.TextInputEditText etComment = view.findViewById(R.id.et_review_comment);
         com.google.android.material.button.MaterialButton btnSubmit = view.findViewById(R.id.btn_submit_review);
@@ -112,11 +112,9 @@ public class OrderHistoryActivity extends AppCompatActivity {
                 return;
             }
 
-            // Show a loading state on the button
             btnSubmit.setEnabled(false);
             btnSubmit.setText("Submitting...");
 
-            // 👉 Create the object using your beautiful new Builder!
             CustomerFeedback feedback = CustomerFeedback.builder()
                     .customerId(FirebaseAuth.getInstance().getUid())
                     .orderId(order.getOrderId())
@@ -125,15 +123,12 @@ public class OrderHistoryActivity extends AppCompatActivity {
                     .comment(comment)
                     .build();
 
-            // Save to the "customer_feedback" collection
             FirebaseFirestore.getInstance().collection("customer_feedback")
                     .add(feedback)
                     .addOnSuccessListener(documentReference -> {
                         Toast.makeText(this, "Review submitted successfully! 🌟", Toast.LENGTH_SHORT).show();
                         dialog.dismiss();
 
-                        // Optional: Update the order document to show a review was left
-                        // so the user can't leave 10 reviews for the same order!
                         FirebaseFirestore.getInstance().collection("orders")
                                 .document(order.getOrderId())
                                 .update("reviewed", true);
@@ -154,12 +149,10 @@ public class OrderHistoryActivity extends AppCompatActivity {
             return;
         }
 
-        android.content.Intent intent = new android.content.Intent(this, CheckoutActivity.class);
-        // Pass the price
+        Intent intent = new Intent(this, CheckoutActivity.class);
+
         intent.putExtra("CART_TOTAL", order.getGrandTotal());
-        // Tell CheckoutActivity this is an EXISTING order payment!
         intent.putExtra("IS_EXISTING_ORDER", true);
-        // Pass the Order ID so we know which document to update after payment
         intent.putExtra("EXISTING_ORDER_ID", order.getOrderId());
 
         startActivity(intent);
@@ -173,7 +166,6 @@ public class OrderHistoryActivity extends AppCompatActivity {
             return;
         }
 
-        // We use addSnapshotListener instead of get()
         orderListener = FirebaseFirestore.getInstance().collection("orders")
                 .whereEqualTo("userId", user.getUid())
                 .orderBy("timestamp", Query.Direction.DESCENDING)
@@ -181,16 +173,14 @@ public class OrderHistoryActivity extends AppCompatActivity {
                 .addSnapshotListener((queryDocumentSnapshots, e) -> {
                     progressBar.setVisibility(View.GONE);
 
-                    // Handle errors (like internet disconnects)
                     if (e != null) {
                         Log.e("OrderHistory", "Error loading orders live", e);
                         Toast.makeText(this, "Live updates paused. Check internet.", Toast.LENGTH_SHORT).show();
                         return;
                     }
 
-                    // Process the live data
                     if (queryDocumentSnapshots != null) {
-                        orderList.clear(); // Clear the old list
+                        orderList.clear();
 
                         if (queryDocumentSnapshots.isEmpty()) {
                             tvNoOrders.setVisibility(View.VISIBLE);
@@ -201,73 +191,56 @@ public class OrderHistoryActivity extends AppCompatActivity {
                                 orderList.add(order);
                             }
                         }
-                        adapter.notifyDataSetChanged(); // Tell the UI to refresh!
+                        adapter.notifyDataSetChanged();
                     }
                 });
     }
 
 
     private void showOrderDetailsBottomSheet(String orderId) {
-        // 1. Inflate the Bottom Sheet layout using View Binding!
+
         sheetBinding = BottomSheetOrderDetailsBinding.inflate(getLayoutInflater());
 
-        // 2. Create the Dialog and set the View
         BottomSheetDialog dialog = new BottomSheetDialog(this);
         dialog.setContentView(sheetBinding.getRoot());
         dialog.show();
 
-        // 3. Fetch from Firebase and populate the binding!
         FirebaseFirestore.getInstance().collection("orders").document(orderId)
                 .get()
                 .addOnSuccessListener(document -> {
                     if (document.exists()) {
 
-                        java.util.List<java.util.Map<String, Object>> itemsList = (java.util.List<java.util.Map<String, Object>>) document.get("items");
+                        List<java.util.Map<String, Object>> itemsList = (List<Map<String, Object>>) document.get("items");
                         String prescriptionUrl = document.getString("prescriptionUrl");
 
-                        // Create two simple booleans to act as our logic switches!
                         boolean hasItems = itemsList != null && !itemsList.isEmpty();
                         boolean hasPrescription = prescriptionUrl != null && !prescriptionUrl.isEmpty();
 
-                        // ==========================================
-                        // --- THE 3-WAY DISPLAY LOGIC ---
-                        // ==========================================
                         if (!hasItems && hasPrescription) {
-                            // TYPE 1: Five Step Upload (Only Image)
-                            sheetBinding.layoutNormalOrderDetails.setVisibility(android.view.View.GONE);
-                            sheetBinding.ivSheetPrescription.setVisibility(android.view.View.VISIBLE);
+                            sheetBinding.layoutNormalOrderDetails.setVisibility(View.GONE);
+                            sheetBinding.ivSheetPrescription.setVisibility(View.VISIBLE);
 
                         } else if (hasItems && !hasPrescription) {
-                            // TYPE 2: Normal Order (Only Cart Details)
-                            sheetBinding.layoutNormalOrderDetails.setVisibility(android.view.View.VISIBLE);
-                            sheetBinding.ivSheetPrescription.setVisibility(android.view.View.GONE);
+                            sheetBinding.layoutNormalOrderDetails.setVisibility(View.VISIBLE);
+                            sheetBinding.ivSheetPrescription.setVisibility(View.GONE);
 
                         } else if (hasItems && hasPrescription) {
-                            // TYPE 3: Restricted Checkout (Details + Image)
-                            sheetBinding.layoutNormalOrderDetails.setVisibility(android.view.View.VISIBLE);
-                            sheetBinding.ivSheetPrescription.setVisibility(android.view.View.VISIBLE);
+                            sheetBinding.layoutNormalOrderDetails.setVisibility(View.VISIBLE);
+                            sheetBinding.ivSheetPrescription.setVisibility(View.VISIBLE);
                         }
 
-                        // ==========================================
-                        // --- DRAW THE UI BASED ON VISIBILITY ---
-                        // ==========================================
-
-                        // 1. Load Image (If it exists)
                         if (hasPrescription) {
-                            com.bumptech.glide.Glide.with(this)
+                            Glide.with(this)
                                     .load(prescriptionUrl)
                                     .into(sheetBinding.ivSheetPrescription);
                         }
 
-                        // 2. Draw Cart Details (If items exist)
                         if (hasItems) {
-                            // Grand Total
                             Double total = document.getDouble("grandTotal");
                             if (total != null)
-                                sheetBinding.tvSheetTotal.setText(String.format(java.util.Locale.getDefault(), "Rs. %.2f", total));
+                                sheetBinding.tvSheetTotal.setText(String.format(Locale.getDefault(), "Rs. %.2f", total));
 
-                            // Address Map
-                            java.util.Map<String, String> addressMap = (java.util.Map<String, String>) document.get("deliveryAddress");
+                            Map<String, String> addressMap = (Map<String, String>) document.get("deliveryAddress");
                             if (addressMap != null) {
                                 String fullAddress = addressMap.get("addressLine1") + ", " +
                                         addressMap.get("homeTown") + "\n" +
@@ -275,27 +248,26 @@ public class OrderHistoryActivity extends AppCompatActivity {
                                 sheetBinding.tvSheetAddress.setText(fullAddress);
                             }
 
-                            // Dynamically build the Items List
                             sheetBinding.layoutItemsContainer.removeAllViews();
-                            for (java.util.Map<String, Object> item : itemsList) {
+                            for (Map<String, Object> item : itemsList) {
                                 String name = (String) item.get("name");
                                 Long qty = (Long) item.get("quantity");
                                 Double price = (Double) item.get("price");
 
-                                android.widget.LinearLayout row = new android.widget.LinearLayout(this);
-                                row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                                LinearLayout row = new LinearLayout(this);
+                                row.setOrientation(LinearLayout.HORIZONTAL);
                                 row.setPadding(0, 8, 0, 8);
 
-                                android.widget.TextView tvItemName = new android.widget.TextView(this);
+                                TextView tvItemName = new TextView(this);
                                 tvItemName.setText(qty + "x  " + name);
-                                tvItemName.setTextColor(android.graphics.Color.BLACK);
+                                tvItemName.setTextColor(Color.BLACK);
                                 tvItemName.setTextSize(15f);
-                                tvItemName.setLayoutParams(new android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+                                tvItemName.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-                                android.widget.TextView tvItemPrice = new android.widget.TextView(this);
+                                TextView tvItemPrice = new TextView(this);
                                 double rowTotal = (qty != null && price != null) ? (qty * price) : 0.0;
-                                tvItemPrice.setText(String.format(java.util.Locale.getDefault(), "Rs. %.2f", rowTotal));
-                                tvItemPrice.setTextColor(android.graphics.Color.DKGRAY);
+                                tvItemPrice.setText(String.format(Locale.getDefault(), "Rs. %.2f", rowTotal));
+                                tvItemPrice.setTextColor(Color.DKGRAY);
                                 tvItemPrice.setTextSize(15f);
 
                                 row.addView(tvItemName);
@@ -314,7 +286,6 @@ public class OrderHistoryActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Stop listening to Firebase when the user closes the screen
         if (orderListener != null) {
             orderListener.remove();
         }

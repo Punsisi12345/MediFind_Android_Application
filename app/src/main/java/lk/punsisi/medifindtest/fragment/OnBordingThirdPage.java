@@ -13,7 +13,6 @@ import lk.punsisi.medifindtest.activity.OnBording;
 import lk.punsisi.medifindtest.databinding.FragmentOnBordingSecondPageBinding;
 import lk.punsisi.medifindtest.databinding.FragmentOnBordingThirdPageBinding;
 
-
 public class OnBordingThirdPage extends Fragment {
 
     private FragmentOnBordingThirdPageBinding binding;
@@ -21,7 +20,6 @@ public class OnBordingThirdPage extends Fragment {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
     }
 
     @Override
@@ -29,14 +27,11 @@ public class OnBordingThirdPage extends Fragment {
                              Bundle savedInstanceState) {
         binding = FragmentOnBordingThirdPageBinding.inflate(inflater,container,false);
 
-
         binding.finishButton.setOnClickListener(v -> {
             if (getActivity() instanceof OnBording){
                 ((OnBording) getActivity()).openRegistrationPage();
             }
         });
-
-
 
         return binding.getRoot();
     }

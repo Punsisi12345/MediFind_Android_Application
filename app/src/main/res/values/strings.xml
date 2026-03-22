@@ -5,4 +5,8 @@
     <string name="drawer_open">Open</string>
     <string name="drawer_close">Close</string>
     <string name="default_web_client_id">974495372870-udc9jvf4ue532cln9k5li8s1i20q76t8.apps.googleusercontent.com</string>
+    <string name="help_amp_support"><![CDATA[Help & Support]]></string>
+    <string name="assistance_help">Need assistance? If you have questions about your account, orders, or pharmacy registration, please reach out to our administration team.</string>
+    <string name="call_us">Call Us (Mon-Fri, 9AM-5PM)</string>
+    <string name="support_telephone_number">034 220 5540</string>
 </resources>
