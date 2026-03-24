@@ -14,6 +14,7 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.card.MaterialCardView;
 
 import java.util.ArrayList;
@@ -28,7 +29,6 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
     private List<Medicine> medicineList = new ArrayList<>();
     private OnInventoryItemClickListener listener;
 
-    // 1. The Callback Interface
     public interface OnInventoryItemClickListener {
         void onEditClick(Medicine medicine);
         void onDeleteClick(Medicine medicine);
@@ -55,43 +55,38 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
     public void onBindViewHolder(@NonNull InventoryViewHolder holder, int position) {
         Medicine medicine = medicineList.get(position);
 
-        // Set basic text details
         holder.tvName.setText(medicine.getName());
         holder.tvCategory.setText(medicine.getCategoryName());
         holder.tvPrice.setText(String.format("Rs. %.2f", medicine.getPrice()));
 
         holder.ivImage.setImageTintList(null);
 
-        // Load Image using Glide
         Glide.with(context)
                 .load(medicine.getImageUrl())
                 .placeholder(R.drawable.baseline_camera_alt_24)
                 .centerCrop()
                 .into(holder.ivImage);
 
-        // 2. Dynamic Stock Badge Logic
+
         int qty = medicine.getQuantity();
         if (qty <= 0) {
-            // OUT OF STOCK (Red)
             holder.tvStockStatus.setText("Out of Stock");
-            holder.tvStockStatus.setTextColor(Color.parseColor("#93000A")); // md_theme_onErrorContainer
-            holder.cardStockBadge.setCardBackgroundColor(Color.parseColor("#FFDAD6")); // md_theme_errorContainer
+            holder.tvStockStatus.setTextColor(Color.parseColor("#93000A"));
+            holder.cardStockBadge.setCardBackgroundColor(Color.parseColor("#FFDAD6"));
         } else if (qty <= 10) {
-            // LOW STOCK (Orange/Warning)
             holder.tvStockStatus.setText("Low Stock: " + qty);
             holder.tvStockStatus.setTextColor(Color.parseColor("#7D5260"));
             holder.cardStockBadge.setCardBackgroundColor(Color.parseColor("#FFD8E4"));
         } else {
-            // IN STOCK (Green - Your Primary Colors)
             holder.tvStockStatus.setText("In Stock: " + qty);
-            holder.tvStockStatus.setTextColor(Color.parseColor("#005048")); // md_theme_onPrimaryContainer
-            holder.cardStockBadge.setCardBackgroundColor(Color.parseColor("#9EF2E3")); // md_theme_primaryContainer
+            holder.tvStockStatus.setTextColor(Color.parseColor("#005048"));
+            holder.cardStockBadge.setCardBackgroundColor(Color.parseColor("#9EF2E3"));
         }
 
-        // 1. Package the Bottom Sheet logic into a reusable click listener
+
         View.OnClickListener showOptionsListener = v -> {
-            com.google.android.material.bottomsheet.BottomSheetDialog bottomSheetDialog =
-                    new com.google.android.material.bottomsheet.BottomSheetDialog(context);
+            BottomSheetDialog bottomSheetDialog =
+                    new BottomSheetDialog(context);
 
             View sheetView = LayoutInflater.from(context).inflate(R.layout.layout_bottom_sheet_inventory_options, null);
             bottomSheetDialog.setContentView(sheetView);
@@ -99,8 +94,8 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
             TextView tvTitle = sheetView.findViewById(R.id.tv_options_title);
             tvTitle.setText("Options for " + medicine.getName());
 
-            com.google.android.material.card.MaterialCardView cardEdit = sheetView.findViewById(R.id.card_edit_item);
-            com.google.android.material.card.MaterialCardView cardDelete = sheetView.findViewById(R.id.card_delete_item);
+            MaterialCardView cardEdit = sheetView.findViewById(R.id.card_edit_item);
+            MaterialCardView cardDelete = sheetView.findViewById(R.id.card_delete_item);
 
             cardEdit.setOnClickListener(view -> {
                 bottomSheetDialog.dismiss();
@@ -115,7 +110,6 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
             bottomSheetDialog.show();
         };
 
-        // 2. Attach the exact same listener to BOTH the 3-dot button AND the whole card!
         holder.btnOptions.setOnClickListener(showOptionsListener);
         holder.itemView.setOnClickListener(showOptionsListener);
     }
@@ -125,7 +119,7 @@ public class InventoryAdapter extends RecyclerView.Adapter<InventoryAdapter.Inve
         return medicineList.size();
     }
 
-    // ViewHolder Class
+
     public static class InventoryViewHolder extends RecyclerView.ViewHolder {
         TextView tvName, tvCategory, tvPrice, tvStockStatus;
         ImageView ivImage;

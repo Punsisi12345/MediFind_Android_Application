@@ -18,7 +18,7 @@
             android:text="Delivery Address"
             android:textSize="22sp"
             android:textStyle="bold"
-            android:textColor="@android:color/black"
+            android:textColor="@color/md_theme_onBackground"
             android:layout_marginBottom="8dp"/>
 
         <TextView

@@ -9,6 +9,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.RatingBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -21,6 +22,8 @@ import com.bumptech.glide.load.resource.bitmap.CenterCrop;
 import com.bumptech.glide.load.resource.bitmap.RoundedCorners;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.button.MaterialButton;
+import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -55,6 +58,14 @@ public class OrderHistoryActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_order_history);
+
+        if (getIntent() != null && getIntent().hasExtra("TARGET_ORDER_ID")) {
+            String specificOrderId = getIntent().getStringExtra("TARGET_ORDER_ID");
+
+            android.util.Log.d("Notification", "User wants to see order: " + specificOrderId);
+            // TODO: if we can highlight the order in the list
+
+        }
 
         initViews();
         fetchOrdersFromFirebase();
@@ -99,9 +110,9 @@ public class OrderHistoryActivity extends AppCompatActivity {
         dialog.setContentView(view);
 
 
-        android.widget.RatingBar ratingBar = view.findViewById(R.id.rating_bar);
-        com.google.android.material.textfield.TextInputEditText etComment = view.findViewById(R.id.et_review_comment);
-        com.google.android.material.button.MaterialButton btnSubmit = view.findViewById(R.id.btn_submit_review);
+        RatingBar ratingBar = view.findViewById(R.id.rating_bar);
+        TextInputEditText etComment = view.findViewById(R.id.et_review_comment);
+        MaterialButton btnSubmit = view.findViewById(R.id.btn_submit_review);
 
         btnSubmit.setOnClickListener(v -> {
             float rating = ratingBar.getRating();
@@ -210,7 +221,7 @@ public class OrderHistoryActivity extends AppCompatActivity {
                 .addOnSuccessListener(document -> {
                     if (document.exists()) {
 
-                        List<java.util.Map<String, Object>> itemsList = (List<Map<String, Object>>) document.get("items");
+                        List<Map<String, Object>> itemsList = (List<Map<String, Object>>) document.get("items");
                         String prescriptionUrl = document.getString("prescriptionUrl");
 
                         boolean hasItems = itemsList != null && !itemsList.isEmpty();
@@ -281,6 +292,12 @@ public class OrderHistoryActivity extends AppCompatActivity {
                     Toast.makeText(this, "Failed to load details", Toast.LENGTH_SHORT).show();
                     dialog.dismiss();
                 });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        fetchOrdersFromFirebase();
     }
 
     @Override

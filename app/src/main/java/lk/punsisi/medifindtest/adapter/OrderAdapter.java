@@ -55,7 +55,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
 
         if (order.getPrescriptionUrl() != null && !order.getPrescriptionUrl().isEmpty() && order.getGrandTotal() == 0) {
             holder.tvOrderTotal.setText("Awaiting Quote");
-            holder.tvOrderTotal.setTextColor(Color.parseColor("#9C27B0")); // Purple text
+            holder.tvOrderTotal.setTextColor(Color.parseColor("#9C27B0")); // purple text
         } else {
             holder.tvOrderTotal.setText(String.format(Locale.getDefault(), "Rs. %.2f", order.getGrandTotal()));
             holder.tvOrderTotal.setTextColor(ContextCompat.getColor(context, R.color.md_theme_primary));
@@ -84,14 +84,14 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
                 bgColor = Color.parseColor("#E3F2FD");
                 break;
             case "on the way":
-                textColor = Color.parseColor("#00838F"); // Teal
+                textColor = Color.parseColor("#00838F"); // teal
                 bgColor = Color.parseColor("#E0F7FA");
                 break;
             case "ready to pick":
             case "ready for delivery":
             case "completed":
             case "delivered":
-                textColor = Color.parseColor("#388E3C"); // Green
+                textColor = Color.parseColor("#388E3C"); // green
                 bgColor = Color.parseColor("#E8F5E9");
                 break;
             case "cancelled":
@@ -108,12 +108,8 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
         holder.tvOrderStatus.setTextColor(textColor);
         holder.tvOrderStatus.setBackgroundTintList(ColorStateList.valueOf(bgColor));
 
-        // ==========================================
-        // 👉 NEW: PAID BADGE & PAY BUTTON LOGIC
-        // ==========================================
         String deliveryMethod = order.getDeliveryMethod() != null ? order.getDeliveryMethod() : "";
 
-        // Reset visibility first
         holder.btnPayNow.setVisibility(View.GONE);
         holder.btnAddReview.setVisibility(View.GONE);
         holder.tvOrderPaidBadge.setVisibility(View.GONE);
@@ -121,22 +117,22 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
 
         if (status.equalsIgnoreCase("Completed") || status.equalsIgnoreCase("Delivered")) {
             if (order.isReviewed()) {
-                // Already reviewed! Hide the button and bring back the arrow
+
                 holder.btnAddReview.setVisibility(View.GONE);
                 holder.ivArrow.setVisibility(View.VISIBLE);
             } else {
-                // Not reviewed yet! Show the shiny Add Review button
+
                 holder.btnAddReview.setVisibility(View.VISIBLE);
                 holder.ivArrow.setVisibility(View.GONE);
             }
 
-            // Still show the paid badge if it was paid
+
             if (order.isPaid()) {
                 holder.tvOrderPaidBadge.setText("Paid");
                 holder.tvOrderPaidBadge.setVisibility(View.VISIBLE);
             }
         } else if (order.isPaid()) {
-            // SCENARIO 2: Order is Paid but not yet completed. Show badge.
+
             if (deliveryMethod.equals("COD")) {
                 holder.tvOrderPaidBadge.setText("COD Paid");
             } else if (deliveryMethod.equals("Pickup")) {
@@ -146,7 +142,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             }
             holder.tvOrderPaidBadge.setVisibility(View.VISIBLE);
         } else {
-            // SCENARIO 3: Not paid, Not completed. Show Pay button if ready.
+
             if (deliveryMethod.equalsIgnoreCase("Online") &&
                     status.equalsIgnoreCase("Ready for Delivery") &&
                     order.getGrandTotal() > 0) {
@@ -155,7 +151,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             }
         }
 
-        // Click Listeners
+
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) listener.onOrderClick(order.getOrderId());
         });
@@ -177,7 +173,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
     public static class OrderViewHolder extends RecyclerView.ViewHolder {
         TextView tvOrderId, tvOrderDate, tvOrderTotal, tvOrderStatus;
 
-        // 👉 NEW: Added the Paid Badge TextView here
+
         TextView tvOrderPaidBadge;
 
         MaterialButton btnPayNow, btnAddReview;
@@ -190,7 +186,6 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             tvOrderTotal = itemView.findViewById(R.id.tv_order_total);
             tvOrderStatus = itemView.findViewById(R.id.tv_order_status);
 
-            // 👉 NEW: Initialize the badge
             tvOrderPaidBadge = itemView.findViewById(R.id.tv_order_paid_badge);
 
             btnPayNow = itemView.findViewById(R.id.btn_pay_now);

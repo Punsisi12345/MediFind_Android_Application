@@ -26,15 +26,12 @@ public interface CartDao {
     @Query("SELECT * FROM cart_items WHERE isDeleted = 0")
     List<CartItem> getActiveCartItems();
 
-    // Check if item is already in cart so we just increase quantity instead of duplicating!
     @Query("SELECT * FROM cart_items WHERE medicineId = :medId LIMIT 1")
     CartItem getCartItemByMedicineId(String medId);
 
-    // Get ONLY the items that failed to upload to Firebase
     @Query("SELECT * FROM cart_items WHERE isSynced = 0")
     List<CartItem> getUnsyncedItems();
 
-    // Empty the cart after successful checkout
     @Query("DELETE FROM cart_items")
     void clearCart();
 

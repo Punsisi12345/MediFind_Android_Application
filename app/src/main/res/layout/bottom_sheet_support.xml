@@ -13,7 +13,7 @@
         android:text="@string/help_amp_support"
         android:textSize="22sp"
         android:textStyle="bold"
-        android:textColor="@android:color/black"
+        android:textColor="@color/md_theme_onBackground"
         android:layout_marginBottom="8dp"/>
 
     <TextView
@@ -56,7 +56,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/support_telephone_number"
                 android:textSize="16sp"
-                android:textColor="@android:color/black"
+                android:textColor="@color/md_theme_onBackground"
                 android:textStyle="bold"/>
         </LinearLayout>
     </LinearLayout>
@@ -93,7 +93,7 @@
                 android:layout_height="wrap_content"
                 android:text="admin@medifind.lk"
                 android:textSize="16sp"
-                android:textColor="@android:color/black"
+                android:textColor="@color/md_theme_onBackground"
                 android:textStyle="bold"/>
         </LinearLayout>
     </LinearLayout>

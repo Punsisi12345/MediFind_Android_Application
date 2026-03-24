@@ -2,8 +2,7 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="#F8F9FA">
+    android:layout_height="match_parent">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
@@ -16,11 +15,11 @@
             android:id="@+id/toolbar_medicines"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="@android:color/white"
+            android:background="@color/md_theme_surfaceBright"
             app:navigationIcon="@drawable/baseline_arrow_back_24"
-            app:navigationIconTint="@android:color/black"
+            app:navigationIconTint="@color/md_theme_onBackground"
             app:title="Category Name"
-            app:titleTextColor="@android:color/black" />
+            app:titleTextColor="@color/md_theme_onBackground" />
     </com.google.android.material.appbar.AppBarLayout>
 
     <com.google.android.material.card.MaterialCardView
@@ -151,7 +150,7 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="52dp"
-            app:cardBackgroundColor="@android:color/white"
+            app:cardBackgroundColor="@color/md_theme_surfaceContainerLowest_highContrast"
             app:cardCornerRadius="12dp"
             app:cardElevation="2dp"
             app:strokeWidth="0dp">

@@ -29,20 +29,20 @@ public class CartHelper {
             boolean isOnline = isNetworkAvailable(context);
 
             int maxStock = 10;
-            boolean hitMaxStock = false; // Flag to safely show Toast on UI thread later
+            boolean hitMaxStock = false;
 
             if (existingItem != null) {
-                // Update existing
+
                 int newQuantity = existingItem.getQuantity() + quantityToAdd;
                 if (newQuantity > maxStock){
                     newQuantity = maxStock;
-                    hitMaxStock = true; // Mark that we hit the limit
+                    hitMaxStock = true;
                 }
 
                 existingItem.setQuantity(newQuantity);
                 existingItem.setSynced(isOnline);
 
-                // 👉 ADDED: Make sure existing items also get the flag updated just in case!
+
                 existingItem.setRequiresPrescription(medicine.isRequiresPrescription());
 
                 db.cartDao().update(existingItem);
@@ -50,7 +50,7 @@ public class CartHelper {
                 if (isOnline) pushToFirebase(existingItem);
 
             } else {
-                // Insert new
+
                 CartItem newItem = new CartItem(
                         medicine.getId(),
                         medicine.getName(),
@@ -62,7 +62,7 @@ public class CartHelper {
                         false
                 );
 
-                // 👉 THE MISSING PIECE! Copy the flag from the Medicine to the CartItem
+
                 newItem.setRequiresPrescription(medicine.isRequiresPrescription());
 
                 db.cartDao().insert(newItem);
@@ -70,7 +70,7 @@ public class CartHelper {
                 if (isOnline) pushToFirebase(newItem);
             }
 
-            // Show Toast safely on the Main UI Thread
+
             final boolean finalHitMaxStock = hitMaxStock;
             new Handler(Looper.getMainLooper()).post(() -> {
                 if (finalHitMaxStock) {

@@ -23,6 +23,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.datepicker.CalendarConstraints;
+import com.google.android.material.datepicker.DateValidatorPointForward;
+import com.google.android.material.datepicker.MaterialDatePicker;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.common.collect.Maps;
 import com.google.firebase.auth.FirebaseAuth;
@@ -30,9 +33,12 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,16 +67,18 @@ public class AddMedicineFragment extends Fragment {
     private String selectedCategoryId = null;
     private String selectedCategoryName = null;
 
-    //Maps Category Name -> Category ID for the dropdown
+    private Long selectedExpiryDateMillis = null;
+
+
     private HashMap<String, String> categoryMap = new HashMap<>();
 
-    // Image Picker Launcher
+    //image picker
     private ActivityResultLauncher<String> imagePickerLauncher;
 
-    // Loading Dialog
+
     private AlertDialog loadingDialog;
 
-    // Edit Mode Variables
+
     private boolean isEditMode = false;
     private String editingMedicineId = null;
     private String existingImageUrl = null;
@@ -101,16 +109,16 @@ public class AddMedicineFragment extends Fragment {
                 int backStackCount = requireActivity().getSupportFragmentManager().getBackStackEntryCount();
 
                 if (backStackCount > 0) {
-                    // 1. It was opened from the Home Dashboard Card -> Slide back normally
+
                     requireActivity().getSupportFragmentManager().popBackStack();
                 } else {
-                    // 2. It was opened from the Side Nav -> Force the Bottom Nav to go Home!
+
                     BottomNavigationView bottomNav = requireActivity().findViewById(R.id.bottom_navigation_view);
                     if (bottomNav != null) {
-                        // Make sure R.id.bottom_nav_home matches the actual ID of your Home tab in your menu XML!
+
                         bottomNav.setSelectedItemId(R.id.bottom_nav_home);
                     } else {
-                        // Failsafe: Just close it
+
                         setEnabled(false);
                         requireActivity().getOnBackPressedDispatcher().onBackPressed();
                     }
@@ -118,21 +126,19 @@ public class AddMedicineFragment extends Fragment {
             }
         });
 
-        //setup ui components
         setupImagePicker();
         fetchPharmacyDetails();
         loadCategoriesForDropdown();
+        setupDatePicker();
 
-        // 👉 NEW: Check if we are in Edit Mode!
+        //check if edit mode
         if (getArguments() != null && getArguments().containsKey("MEDICINE_ID_TO_EDIT")) {
             isEditMode = true;
             editingMedicineId = getArguments().getString("MEDICINE_ID_TO_EDIT");
 
-            // Change the UI text to Edit Mode
             binding.tvHeaderTitle.setText("Edit Medicine");
             binding.btnAddMedicine.setText("Update Medicine");
 
-            // Fetch the data and fill the form
             loadMedicineDataForEditing(editingMedicineId);
         }
 
@@ -144,6 +150,34 @@ public class AddMedicineFragment extends Fragment {
             }
         });
 
+    }
+
+    private void setupDatePicker() {
+
+        CalendarConstraints constraints = new CalendarConstraints.Builder()
+                .setValidator(DateValidatorPointForward.now())
+                .build();
+
+        MaterialDatePicker<Long> datePicker = MaterialDatePicker.Builder.datePicker()
+                .setTitleText("Select Expiry Date")
+                .setSelection(MaterialDatePicker.todayInUtcMilliseconds())
+                .setCalendarConstraints(constraints)
+                .build();
+
+        datePicker.addOnPositiveButtonClickListener(selection -> {
+            selectedExpiryDateMillis = selection;
+
+            SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+            binding.etExpiryDate.setText(sdf.format(new Date(selection)));
+            binding.etExpiryDate.setError(null);
+        });
+
+
+        binding.etExpiryDate.setOnClickListener(v -> {
+            if (!datePicker.isAdded()) {
+                datePicker.show(getParentFragmentManager(), "EXPIRY_DATE_PICKER");
+            }
+        });
     }
 
     //open device image gallery
@@ -221,16 +255,18 @@ public class AddMedicineFragment extends Fragment {
             binding.etQuantity.setError("Required");
             return false;
         }
+        if (selectedExpiryDateMillis == null) {
+            binding.etExpiryDate.setError("Please select an expiry date");
+            return false;
+        }
         return true;
     }
 
     private void processAndSaveMedicine() {
         showLoadingDialog();
 
-        // 1. Determine the ID (Use existing if editing, create new if adding)
         String finalMedicineId = isEditMode ? editingMedicineId : java.util.UUID.randomUUID().toString();
 
-        // 2. Calculate Status
         int enteredQuantity = Integer.parseInt(binding.etQuantity.getText().toString().trim());
         String calculatedStatus;
         if (enteredQuantity <= 0) {
@@ -241,7 +277,6 @@ public class AddMedicineFragment extends Fragment {
             calculatedStatus = "In Stock";
         }
 
-        // 3. Image Logic
         if (selectedImageUri != null) {
             // User selected a NEW image (works for both Add and Edit)
             StorageReference storageRef = storage.getReference().child("medicine_images/" + finalMedicineId + ".jpg");
@@ -254,7 +289,6 @@ public class AddMedicineFragment extends Fragment {
                         Toast.makeText(requireContext(), "Image Upload Failed", Toast.LENGTH_SHORT).show();
                     });
         } else {
-            // Edit Mode, but NO new image selected -> Use the existing image URL
             saveToFirestore(finalMedicineId, existingImageUrl, enteredQuantity, calculatedStatus);
         }
     }
@@ -271,32 +305,34 @@ public class AddMedicineFragment extends Fragment {
                 .dosage(binding.etDosage.getText().toString().trim())
                 .price(Double.parseDouble(binding.etPrice.getText().toString().trim()))
                 .quantity(quantity)
+                .expiryDate(selectedExpiryDateMillis)
                 .requiresPrescription(binding.switchPrescription.isChecked())
-                .imageUrl(imageUrl) // Extracted URL
+                .imageUrl(imageUrl)
                 .pharmacistId(uid)
                 .pharmacyName(currentPharmacyName)
-                .status(status) // Extracted Status
-                .salesCount(0) // Note: In a real app, you might want to fetch and keep the existing salesCount!
+                .status(status)
+                .salesCount(0)
                 .lastUpdated(System.currentTimeMillis())
                 .deleted(false)
                 .build();
 
         db.collection("medicines").document(medicineId).set(updatedMedicine)
                 .addOnSuccessListener(aVoid -> {
-                    // 👉 INSTANT UI UPDATE: Save to local Room database immediately!
+
+                    //save to local db
                     executorService.execute(() -> {
                         if (isEditMode) {
                             medicineDao.updateMedicine(updatedMedicine);
                         } else {
                             medicineDao.insertMedicine(updatedMedicine);
                         }
-                        // Switch back to the main thread to close the fragment
+
                         requireActivity().runOnUiThread(() -> {
                             loadingDialog.dismiss();
                             String successMessage = isEditMode ? "Medicine Updated!" : "Medicine Added!";
                             Toast.makeText(requireContext(), successMessage, Toast.LENGTH_SHORT).show();
 
-                            // Go back to ManageInventoryFragment
+
                             requireActivity().getSupportFragmentManager().popBackStack();
                         });
                     });
@@ -334,22 +370,26 @@ public class AddMedicineFragment extends Fragment {
 
             if (medicine != null) {
                 requireActivity().runOnUiThread(() -> {
-                    // Fill Text Inputs
+
                     binding.etMedicineName.setText(medicine.getName());
                     binding.etDescription.setText(medicine.getDescription());
                     binding.etDosage.setText(medicine.getDosage());
                     binding.etPrice.setText(String.valueOf(medicine.getPrice()));
                     binding.etQuantity.setText(String.valueOf(medicine.getQuantity()));
 
-                    // Set Toggle
+
                     binding.switchPrescription.setChecked(medicine.isRequiresPrescription());
 
-                    // Set Category (This is a bit tricky with AutoCompleteTextView, so we force it)
                     selectedCategoryId = medicine.getCategoryId();
                     selectedCategoryName = medicine.getCategoryName();
                     binding.autoCompleteCategory.setText(medicine.getCategoryName(), false);
 
-                    // Load existing image
+                    if (medicine.getExpiryDate() > 0) {
+                        selectedExpiryDateMillis = medicine.getExpiryDate();
+                        SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy", Locale.getDefault());
+                        binding.etExpiryDate.setText(sdf.format(new Date(medicine.getExpiryDate())));
+                    }
+
                     existingImageUrl = medicine.getImageUrl();
                     binding.tvImagePlaceholder.setVisibility(View.GONE);
                     binding.ivMedicineImage.setImageTintList(null);

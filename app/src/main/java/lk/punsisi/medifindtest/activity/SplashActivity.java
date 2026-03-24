@@ -2,8 +2,11 @@ package lk.punsisi.medifindtest.activity;
 
 import android.animation.Animator;
 import android.content.Intent;
-import android.content.SharedPreferences; // Make sure this is imported!
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -14,51 +17,93 @@ import lk.punsisi.medifindtest.R;
 
 public class SplashActivity extends AppCompatActivity {
 
+    //prevent app opening twice
+    private boolean isRoutingComplete = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+
+        if (!isTaskRoot()
+                && getIntent().hasCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                && getIntent().getAction() != null
+                && getIntent().getAction().equals(android.content.Intent.ACTION_MAIN)) {
+            finish();
+            return;
+        }
+
         setContentView(R.layout.activity_splash);
 
-        LottieAnimationView lottieAnimationView = findViewById(R.id.lottieAnimationView);
+        //check notification data
+        if (getIntent() != null && getIntent().getExtras() != null) {
 
+            Log.d("FCM_DEBUG", "-----------------------------------------");
+            Log.d("FCM_DEBUG", "SplashActivity woke up from a notification!");
+
+
+            for (String key : getIntent().getExtras().keySet()) {
+                Log.d("FCM_DEBUG", "Found Key -> " + key + " : " + getIntent().getExtras().get(key));
+            }
+            Log.d("FCM_DEBUG", "-----------------------------------------");
+
+
+            String orderId = getIntent().getStringExtra("orderId");
+
+            if (orderId != null) {
+                Log.d("FCM_DEBUG", "Valid orderId found! Skipping animation.");
+                routeToNextScreen();
+                return;
+            } else {
+                Log.e("FCM_DEBUG", "WARNING: Extras exist, but 'orderId' is missing!");
+            }
+        } else {
+            Log.d("FCM_DEBUG", "Normal app launch. No notification data found.");
+        }
+
+        // animation play
+        LottieAnimationView lottieAnimationView = findViewById(R.id.lottieAnimationView);
         lottieAnimationView.addAnimatorListener(new Animator.AnimatorListener() {
             @Override
-            public void onAnimationStart(@NonNull Animator animation) {
-                // Animation started, do nothing
-            }
+            public void onAnimationStart(@NonNull Animator animation) {}
 
             @Override
             public void onAnimationEnd(@NonNull Animator animation) {
-                // THE NEW ROUTING LOGIC:
-                // 1. Open the local SharedPreferences file
-                SharedPreferences preferences = getSharedPreferences("MediFindPrefs", MODE_PRIVATE);
-
-                // 2. Check the flag (Defaults to true if the app was just installed)
-                boolean isFirstTime = preferences.getBoolean("isFirstTimeLaunch", true);
-
-                Intent intent;
-                if (isFirstTime) {
-                    // First time opening the app -> Go to Onboarding
-                    intent = new Intent(SplashActivity.this, OnBording.class);
-                } else {
-                    // Already saw onboarding -> Go straight to the App
-                    // TODO: Change "HomeActivity.class" if your main screen is named something else (like MainActivity.class or LoginActivity.class)
-                    intent = new Intent(SplashActivity.this, MainActivity.class);
-                }
-
-                startActivity(intent);
-
-                // close splash screen (if not use when click back button then splash screen will show)
-                finish();
+                routeToNextScreen();
             }
 
             @Override
-            public void onAnimationCancel(@NonNull Animator animation) {
-            }
+            public void onAnimationCancel(@NonNull Animator animation) {}
 
             @Override
-            public void onAnimationRepeat(@NonNull Animator animation) {
-            }
+            public void onAnimationRepeat(@NonNull Animator animation) {}
         });
+
+
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            routeToNextScreen();
+        }, 3000);
+    }
+
+    private void routeToNextScreen() {
+        if (isRoutingComplete) return;
+        isRoutingComplete = true;
+
+        SharedPreferences preferences = getSharedPreferences("MediFindPrefs", MODE_PRIVATE);
+        boolean isFirstTime = preferences.getBoolean("isFirstTimeLaunch", true);
+
+        Intent intent;
+        if (isFirstTime) {
+            intent = new Intent(SplashActivity.this, OnBording.class);
+        } else {
+            intent = new Intent(SplashActivity.this, MainActivity.class);
+        }
+
+        if (getIntent() != null && getIntent().getExtras() != null) {
+            intent.putExtras(getIntent().getExtras());
+        }
+
+        startActivity(intent);
+        finish();
     }
 }

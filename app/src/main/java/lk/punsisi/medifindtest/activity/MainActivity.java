@@ -1,6 +1,8 @@
 package lk.punsisi.medifindtest.activity;
 
 
+import static androidx.core.content.ContentProviderCompat.requireContext;
+
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
@@ -8,7 +10,13 @@ import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
+import android.hardware.Sensor;
+import android.hardware.SensorManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -30,6 +38,7 @@ import androidx.work.WorkManager;
 import com.bumptech.glide.Glide;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.navigation.NavigationBarView;
 import com.google.android.material.navigation.NavigationView;
 import com.google.firebase.auth.FirebaseAuth;
@@ -40,12 +49,14 @@ import com.google.firebase.messaging.FirebaseMessaging;
 
 import lk.punsisi.medifindtest.R;
 import lk.punsisi.medifindtest.databinding.ActivityMainBinding;
+import lk.punsisi.medifindtest.databinding.BottomSheetSupportBinding;
 import lk.punsisi.medifindtest.databinding.SideNavHeaderBinding;
 import lk.punsisi.medifindtest.fragment.AddMedicineFragment;
 import lk.punsisi.medifindtest.fragment.HomeFragment;
 import lk.punsisi.medifindtest.fragment.MapFragment;
 import lk.punsisi.medifindtest.fragment.CartFragment;
 import lk.punsisi.medifindtest.fragment.ProfileFragment;
+import lk.punsisi.medifindtest.helper.ShakeDetector;
 import lk.punsisi.medifindtest.model.User;
 
 public class MainActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener, NavigationBarView.OnItemSelectedListener {
@@ -66,13 +77,23 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
 
     private ListenerRegistration roleSyncListener;
 
+    private SensorManager mSensorManager;
+    private Sensor mAccelerometer;
+    private ShakeDetector mShakeDetector;
+
+    private BottomSheetDialog supportBottomSheetDialog;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         binding = ActivityMainBinding.inflate(getLayoutInflater());
 
         setContentView(binding.getRoot());
+
+        checkNotificationIntent(getIntent());
+
 
         firebaseAuth = FirebaseAuth.getInstance();
         firebaseFirestore = FirebaseFirestore.getInstance();
@@ -203,6 +224,13 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         //check user or pharmacist
         startSilentRoleSync();
         unlockPharmacistToolsIfAuthorized();
+
+
+        mSensorManager = (SensorManager) this.getSystemService(Context.SENSOR_SERVICE);
+        mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        mShakeDetector = new ShakeDetector();
+
+        mShakeDetector.setOnShakeListener(this::showSupportBottomSheet);
 
     }
 
@@ -399,6 +427,111 @@ public class MainActivity extends AppCompatActivity implements NavigationView.On
         menu.findItem(R.id.side_nav_manage_inventary).setVisible(false);
         menu.findItem(R.id.side_nav_add_medicine).setVisible(false);
         menu.findItem(R.id.side_nav_prescription).setVisible(false);
+    }
+
+    private void showSupportBottomSheet() {
+
+        if (supportBottomSheetDialog != null && supportBottomSheetDialog.isShowing()) {
+            return;
+        }
+
+        Vibrator vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+
+        if (vibrator != null && vibrator.hasVibrator()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                long[] timings = {0, 100, 50, 100};
+                int[] amplitudes = {0, 255, 0, 255};
+                vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1));
+            } else {
+                long[] pattern = {0, 100, 50, 100};
+                vibrator.vibrate(pattern, -1);
+            }
+        }
+
+        supportBottomSheetDialog = new BottomSheetDialog(this);
+
+        BottomSheetSupportBinding sheetBinding = BottomSheetSupportBinding.inflate(getLayoutInflater());
+        supportBottomSheetDialog.setContentView(sheetBinding.getRoot());
+
+        sheetBinding.btnCloseSupport.setOnClickListener(v -> supportBottomSheetDialog.dismiss());
+
+        // phone dialer open
+        sheetBinding.callIcon.setOnClickListener(v -> {
+
+            String phone = sheetBinding.phoneNumber.getText().toString().trim();
+
+            if (!phone.isEmpty()) {
+                Intent intent = new Intent(Intent.ACTION_DIAL);
+                intent.setData(Uri.parse("tel:" + phone));
+                startActivity(intent);
+            } else {
+                Toast.makeText(this, "Phone number not available", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        // email app open
+        sheetBinding.emailIcon.setOnClickListener(v -> {
+
+            String emailAddress = sheetBinding.email.getText().toString().trim();
+
+            if (!emailAddress.isEmpty()) {
+
+                Intent intent = new Intent(Intent.ACTION_SENDTO);
+                intent.setData(Uri.parse("mailto:" + emailAddress));
+
+                //automatically set subject and text for draft mail
+                intent.putExtra(Intent.EXTRA_SUBJECT, "Support Request: MediFind App");
+
+                startActivity(intent);
+            } else {
+                Toast.makeText(this, "Email address not available", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        supportBottomSheetDialog.show();
+    }
+
+    @Override
+    protected void onNewIntent(android.content.Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+
+        checkNotificationIntent(intent);
+    }
+
+    private void checkNotificationIntent(android.content.Intent intent) {
+        if (intent != null && intent.getExtras() != null) {
+
+            for (String key : intent.getExtras().keySet()) {
+                android.util.Log.d("FCM_DEBUG", "Found Key: " + key + " | Value: " + intent.getExtras().get(key));
+            }
+            String orderId = intent.getStringExtra("orderId");
+            String action = intent.getStringExtra("action");
+
+            if (orderId != null && action != null) {
+                if (action.equals("OPEN_NEW_ORDER")) {
+                    android.util.Log.d("FCM", "Pharmacist routing. Order ID: " + orderId);
+                } else if (action.equals("VIEW_ORDER_STATUS")) {
+                    android.util.Log.d("FCM", "Customer routing. Order ID: " + orderId);
+
+                    Intent historyIntent = new Intent(this, OrderHistoryActivity.class);
+                    historyIntent.putExtra("TARGET_ORDER_ID", orderId);
+                    startActivity(historyIntent);
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        mSensorManager.registerListener(mShakeDetector, mAccelerometer, android.hardware.SensorManager.SENSOR_DELAY_UI);
+    }
+
+    @Override
+    public void onPause() {
+        mSensorManager.unregisterListener(mShakeDetector);
+        super.onPause();
     }
 
     @Override

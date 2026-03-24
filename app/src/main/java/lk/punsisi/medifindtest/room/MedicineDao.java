@@ -13,22 +13,21 @@ import lk.punsisi.medifindtest.model.Medicine;
 @Dao
 public interface MedicineDao {
 
-    // 1. Insert or update medicines
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertMedicines(List<Medicine> medicines);
 
-    // Insert a single new medicine
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertMedicine(Medicine medicine);
 
     @Update
     void updateMedicine(Medicine medicine);
-    // 2. Get the TOP 10 best sellers for the Home Screen!
+
 
     @Query("SELECT * FROM medicines WHERE deleted = 0 ORDER BY salesCount DESC LIMIT 10")
     List<Medicine> getTopSellingMedicines();
 
-    // 3. Find our latest timestamp to know what to download
     @Query("SELECT MAX(lastUpdated) FROM medicines")
     long getLatestTimestamp();
 

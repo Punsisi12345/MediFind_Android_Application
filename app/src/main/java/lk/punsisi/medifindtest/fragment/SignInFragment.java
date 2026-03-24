@@ -57,10 +57,9 @@ public class SignInFragment extends Fragment {
         firebaseAuth = FirebaseAuth.getInstance();
         firebaseFirestore = FirebaseFirestore.getInstance();
 
-        // 1. Initialize the new Credential Manager
+
         CredentialManager credentialManager = CredentialManager.create(requireContext());
 
-        // 2. Configure the Google ID request
         GetGoogleIdOption googleIdOption = new GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(getString(R.string.default_web_client_id))
@@ -71,7 +70,6 @@ public class SignInFragment extends Fragment {
                 .addCredentialOption(googleIdOption)
                 .build();
 
-        // 3. Google Button Click Listener
         binding.btnGoogleSignIn.setOnClickListener(v -> {
             credentialManager.getCredentialAsync(
                     requireContext(),
@@ -107,7 +105,6 @@ public class SignInFragment extends Fragment {
             }
         });
 
-        // --- Standard Email/Password Routing ---
         binding.signInButton.setOnClickListener(v -> {
             String email = binding.signInEmail.getText().toString().trim();
             String password = binding.signInPassword.getText().toString().trim();
@@ -133,7 +130,7 @@ public class SignInFragment extends Fragment {
             firebaseAuth.signInWithEmailAndPassword(email, password)
                     .addOnCompleteListener(task -> {
                         if (task.isSuccessful()) {
-                            // 👉 NEW: Don't jump to MainActivity instantly! Fetch the role first.
+
                             String uid = firebaseAuth.getCurrentUser().getUid();
                             fetchRoleAndNavigate(uid);
                         } else {
@@ -160,11 +157,9 @@ public class SignInFragment extends Fragment {
                             User user = User.builder().uid(uid).name(name).email(email).build();
                             firebaseFirestore.collection("users").document(uid).set(user);
 
-                            // 👉 NEW: It's a brand new user, so default to "user" role instantly!
                             saveRoleLocally("user");
                             navigateToMain();
                         } else {
-                            // 👉 NEW: Returning Google user. Check their role!
                             fetchRoleAndNavigate(uid);
                         }
                     } else {
@@ -173,15 +168,12 @@ public class SignInFragment extends Fragment {
                 });
     }
 
-    // ==========================================
-    // --- OFFLINE-FIRST ROLE ARCHITECTURE ---
-    // ==========================================
 
     private void fetchRoleAndNavigate(String uid) {
-        // Fetch the profile ONE time during login
+
         firebaseFirestore.collection("users").document(uid).get()
                 .addOnSuccessListener(documentSnapshot -> {
-                    String role = "user"; // Default safety fallback
+                    String role = "user";
                     if (documentSnapshot.exists() && documentSnapshot.getString("role") != null) {
                         role = documentSnapshot.getString("role");
                     }
@@ -190,18 +182,18 @@ public class SignInFragment extends Fragment {
                     navigateToMain();
                 })
                 .addOnFailureListener(e -> {
-                    // If internet drops right after auth, default to user so they aren't stuck
+
                     saveRoleLocally("user");
                     navigateToMain();
                 });
     }
 
     private void saveRoleLocally(String role) {
-        // SharedPreferences is a tiny, lightning-fast local XML file
+
         SharedPreferences sharedPreferences = requireActivity().getSharedPreferences("MediFindPrefs", Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putString("USER_ROLE", role);
-        editor.apply(); // apply() saves in the background perfectly!
+        editor.apply();
     }
 
     private void navigateToMain() {

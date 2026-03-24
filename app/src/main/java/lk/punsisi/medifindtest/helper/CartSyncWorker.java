@@ -28,37 +28,35 @@ public class CartSyncWorker extends Worker {
     public Result doWork() {
         FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser == null) {
-            return Result.failure(); // Stop if not logged in
+            return Result.failure();
         }
 
         String userId = currentUser.getUid();
         AppDatabase db = AppDatabase.getDatabase(getApplicationContext());
         FirebaseFirestore firestore = FirebaseFirestore.getInstance();
 
-        // 1. Get all items that failed to upload earlier
         List<CartItem> unsyncedItems = db.cartDao().getUnsyncedItems();
 
         if (unsyncedItems.isEmpty()) {
-            return Result.success(); // Nothing to sync!
+            return Result.success();
         }
 
         try {
             for (CartItem item : unsyncedItems) {
 
                 if (item.isDeleted()) {
-                    // It's a pending DELETION!
+
                     Tasks.await(firestore.collection("users")
                             .document(userId)
                             .collection("cart")
                             .document(item.getMedicineId())
                             .delete());
 
-                    // Now that Firebase knows it's deleted, we can permanently remove it from the phone
                     db.cartDao().delete(item);
                     Log.d("CartSyncWorker", "Successfully synced DELETION: " + item.getName());
 
                 } else {
-                    // It's a pending UPDATE or INSERT!
+
                     Tasks.await(firestore.collection("users")
                             .document(userId)
                             .collection("cart")

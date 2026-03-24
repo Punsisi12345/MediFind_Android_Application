@@ -50,7 +50,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:visibility="gone">
+                android:visibility="visible">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -182,7 +182,7 @@
                         android:clickable="true"
                         android:focusable="true"
                         android:foreground="?attr/selectableItemBackground"
-                        app:cardBackgroundColor="#DEEBE9"
+                        app:cardBackgroundColor="@color/md_theme_secondaryContainer"
                         app:cardCornerRadius="20dp">
 
                         <LinearLayout
@@ -216,7 +216,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:visibility="visible">
+                android:visibility="gone">
 
                 <TextView
                     android:layout_width="match_parent"
@@ -653,7 +653,6 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#F8F9FA"
         android:orientation="vertical"
         android:visibility="gone">
 
@@ -693,19 +692,21 @@
                 app:iconTint="@color/md_theme_primary" />
         </LinearLayout>
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rv_home_search_results"
+        <RelativeLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:clipToPadding="false"
-            android:padding="4dp" />
+            android:layout_weight="1">
 
-        <LinearLayout
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rv_home_search_results"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:padding="4dp"
+                android:paddingBottom="80dp" /> <LinearLayout
             android:id="@+id/layout_home_empty_state"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
+            android:layout_height="match_parent"
             android:gravity="center"
             android:orientation="vertical"
             android:visibility="gone">
@@ -735,61 +736,18 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@android:color/white"
-            android:elevation="12dp"
-            android:gravity="center"
-            android:orientation="horizontal"
-            android:paddingHorizontal="24dp"
-            android:paddingVertical="16dp">
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_search_prev"
-                style="@style/Widget.Material3.Button.IconButton.Outlined"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                app:cornerRadius="16dp"
-                app:icon="@drawable/baseline_chevron_left_24"
-                app:iconSize="28dp"
-                app:iconTint="@color/md_theme_primary"
-                app:strokeColor="#E0E0E0"
-                app:strokeWidth="1.5dp" />
-
-            <LinearLayout
-                android:layout_width="0dp"
+            <include
+                android:id="@+id/layout_pagination"
+                layout="@layout/layout_custom_pagination"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="center">
+                android:layout_alignParentBottom="true"
+                android:layout_centerHorizontal="true"
+                android:layout_marginBottom="24dp" />
 
-                <TextView
-                    android:id="@+id/tv_search_page"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/badge_background_curved"
-                    android:backgroundTint="#F5F7FA"
-                    android:paddingHorizontal="20dp"
-                    android:paddingVertical="8dp"
-                    android:text="Page 1 of 1"
-                    android:textColor="@color/md_theme_primary"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btn_search_next"
-                style="@style/Widget.Material3.Button.IconButton.Outlined"
-                android:layout_width="50dp"
-                android:layout_height="50dp"
-                app:cornerRadius="16dp"
-                app:icon="@drawable/baseline_chevron_right_24"
-                app:iconSize="28dp"
-                app:iconTint="@color/md_theme_primary"
-                app:strokeColor="#E0E0E0"
-                app:strokeWidth="1.5dp" />
-
-        </LinearLayout>
+        </RelativeLayout>
     </LinearLayout>
+
+
 
 </LinearLayout>

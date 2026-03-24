@@ -29,16 +29,15 @@ public class Medicine {
     private String status;
     private String imageUrl;
 
-    // The new field to track best sellers!
     private int salesCount;
+    private long expiryDate;
 
     private boolean requiresPrescription;
 
-    private String pharmacistId; // The user's UID
+    private String pharmacistId;
     private String pharmacyName;
     private String source = "pharmacist";
 
-    // Required for Offline Sync & Data Integrity
     private long lastUpdated;
     private boolean deleted;
 }

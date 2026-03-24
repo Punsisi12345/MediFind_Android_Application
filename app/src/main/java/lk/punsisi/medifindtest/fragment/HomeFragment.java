@@ -11,7 +11,12 @@ import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -61,6 +66,7 @@ import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
+import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
@@ -90,9 +96,11 @@ import lk.punsisi.medifindtest.activity.MedicinesListActivity;
 import lk.punsisi.medifindtest.adapter.CategoryAdapter;
 import lk.punsisi.medifindtest.adapter.CategoryChipAdapter;
 import lk.punsisi.medifindtest.adapter.MedicineAdapter;
+import lk.punsisi.medifindtest.databinding.BottomSheetDeliveryAddressBinding;
 import lk.punsisi.medifindtest.databinding.BottomSheetPharmaciesBinding;
 import lk.punsisi.medifindtest.databinding.FragmentHomeBinding;
 import lk.punsisi.medifindtest.databinding.ItemPharmacySelectionBinding;
+import lk.punsisi.medifindtest.databinding.LayoutCustomPaginationBinding;
 import lk.punsisi.medifindtest.model.Category;
 import lk.punsisi.medifindtest.model.DeliveryAddress;
 import lk.punsisi.medifindtest.model.Medicine;
@@ -139,6 +147,9 @@ public class HomeFragment extends Fragment {
     private String currentSort = "A-Z";
     private String currentSearchText = "";
 
+    private MaterialButton btnPrev, btnNext;
+    private TextView tvPageIndicator;
+
     //to prescription camera
     private ActivityResultLauncher<String> galleryLauncher;
     private AlertDialog loadingDialog;
@@ -154,6 +165,7 @@ public class HomeFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         binding = FragmentHomeBinding.inflate(inflater, container, false);
+
 
         db = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
@@ -175,6 +187,7 @@ public class HomeFragment extends Fragment {
 
             loadDashboardMetrics();
             loadLiveChartData();
+            loadExpiryChartData();
 
             binding.addItemBtn.setOnClickListener(v -> {
                 requireActivity().getSupportFragmentManager()
@@ -262,6 +275,7 @@ public class HomeFragment extends Fragment {
         binding.myCardDiv.setOnClickListener(v -> {
             galleryLauncher.launch("image/*");
         });
+
 
 
         return binding.getRoot();
@@ -375,6 +389,97 @@ public class HomeFragment extends Fragment {
                     updateTopSellingChart(itemSales);
                     updateRxOtcLiveChart(rxCount, otcCount);
                 });
+    }
+
+    private void loadExpiryChartData() {
+        FirebaseUser currentUser = auth.getCurrentUser();
+        if (currentUser == null) return;
+
+        String pharmacyId = currentUser.getUid();
+
+        db.collection("medicines")
+                .whereEqualTo("pharmacistId", pharmacyId)
+                .whereEqualTo("deleted", false)
+                .addSnapshotListener((value, error) -> {
+                    if (error != null || value == null || binding == null) {
+                        Log.e("Charts", "Error loading expiry data", error);
+                        return;
+                    }
+
+                    int safeCount = 0;
+                    int soonCount = 0;
+                    int expiredCount = 0;
+
+                    long currentTime = System.currentTimeMillis();
+
+                    //expiring soon (60 days)
+                    long THRESHOLD_DAYS = 60L;
+                    long thresholdInMillis = THRESHOLD_DAYS * 24L * 60L * 60L * 1000L;
+
+                    for (QueryDocumentSnapshot doc : value) {
+                        Long expiryDate = doc.getLong("expiryDate");
+
+                        if (expiryDate != null && expiryDate > 0) {
+                            if (expiryDate < currentTime) {
+                                expiredCount++;
+                            } else if (expiryDate <= (currentTime + thresholdInMillis)) {
+                                soonCount++;
+                            } else {
+                                safeCount++;
+                            }
+                        }
+                    }
+
+                    updateExpiryLiveChart(safeCount, soonCount, expiredCount);
+                });
+    }
+
+    private void updateExpiryLiveChart(int safe, int soon, int expired) {
+        ArrayList<PieEntry> entries = new ArrayList<>();
+        ArrayList<Integer> colors = new ArrayList<>();
+
+        if (safe > 0) {
+            entries.add(new PieEntry(safe, "Safe"));
+            colors.add(Color.parseColor("#4CAF50"));
+        }
+        if (soon > 0) {
+            entries.add(new PieEntry(soon, "Soon"));
+            colors.add(Color.parseColor("#FFC107"));
+        }
+        if (expired > 0) {
+            entries.add(new PieEntry(expired, "Expired"));
+            colors.add(Color.parseColor("#F44336"));
+        }
+
+        if (entries.isEmpty()) {
+            entries.add(new PieEntry(100f, "No Data"));
+            colors.add(Color.parseColor("#E0E0E0"));
+        }
+
+        PieDataSet dataSet = new PieDataSet(entries, "");
+        dataSet.setColors(colors);
+
+        dataSet.setValueTextColor(Color.WHITE);
+        dataSet.setValueTextSize(12f);
+
+        PieData data = new PieData(dataSet);
+
+        data.setValueFormatter(new com.github.mikephil.charting.formatter.PercentFormatter(binding.expiryPieChart));
+
+        binding.expiryPieChart.setData(data);
+        binding.expiryPieChart.getDescription().setEnabled(false);
+        binding.expiryPieChart.getLegend().setEnabled(false);
+
+        binding.expiryPieChart.setUsePercentValues(true);
+        binding.expiryPieChart.setEntryLabelColor(Color.WHITE);
+        binding.expiryPieChart.setEntryLabelTextSize(11f);
+        binding.expiryPieChart.setCenterText("Status");
+        binding.expiryPieChart.setCenterTextSize(14f);
+        binding.expiryPieChart.setHoleRadius(40f);
+        binding.expiryPieChart.setTransparentCircleRadius(45f);
+
+        binding.expiryPieChart.animateY(1000);
+        binding.expiryPieChart.invalidate();
     }
 
     private void updateMonthlyRevenueChart(float[] monthlyRevenue) {
@@ -578,15 +683,19 @@ public class HomeFragment extends Fragment {
             popupMenu.show();
         });
 
+        btnPrev = binding.layoutPagination.btnPagePrev;
+        btnNext = binding.layoutPagination.btnPageNext;
+        tvPageIndicator = binding.layoutPagination.tvPageInfo;
+
         //pagination click
-        binding.btnSearchPrev.setOnClickListener(v -> {
+        btnPrev.setOnClickListener(v -> {
             if (currentPage > 1) {
                 currentPage--;
                 updateSearchPaginationUI();
             }
         });
 
-        binding.btnSearchNext.setOnClickListener(v -> {
+        btnNext.setOnClickListener(v -> {
             int totalPages = (int) Math.ceil((double) filteredSearchList.size() / ITEMS_PER_PAGE);
             if (currentPage < totalPages) {
                 currentPage++;
@@ -674,9 +783,9 @@ public class HomeFragment extends Fragment {
             binding.rvHomeSearchResults.setVisibility(View.GONE);
             binding.layoutHomeEmptyState.setVisibility(View.VISIBLE);
 
-            binding.tvSearchPage.setText("No results");
-            binding.btnSearchPrev.setEnabled(false);
-            binding.btnSearchNext.setEnabled(false);
+            tvPageIndicator.setText("No results");
+            btnPrev.setEnabled(false);
+            btnNext.setEnabled(false);
             searchResultsAdapter = new MedicineAdapter(requireContext(), new ArrayList<>(), true);
             binding.rvHomeSearchResults.setAdapter(searchResultsAdapter);
             return;
@@ -699,9 +808,9 @@ public class HomeFragment extends Fragment {
         searchResultsAdapter = new MedicineAdapter(requireContext(), pagedItems, true);
         binding.rvHomeSearchResults.setAdapter(searchResultsAdapter);
 
-        binding.tvSearchPage.setText("Page " + currentPage + " of " + totalPages);
-        binding.btnSearchPrev.setEnabled(currentPage > 1);
-        binding.btnSearchNext.setEnabled(currentPage < totalPages);
+        tvPageIndicator.setText("Page " + currentPage + " of " + totalPages);
+        btnPrev.setEnabled(currentPage > 1);
+        btnNext.setEnabled(currentPage < totalPages);
     }
 
     private void updateCategoryChips(List<Category> dbCategories) {
@@ -867,7 +976,7 @@ public class HomeFragment extends Fragment {
                         requireActivity().runOnUiThread(() -> {
                             loadingDialog.dismiss();
                             if (localPharmacies.isEmpty()) {
-                                android.widget.Toast.makeText(requireContext(), "No pharmacies found within 15 km of your current location.", android.widget.Toast.LENGTH_LONG).show();
+                                android.widget.Toast.makeText(requireContext(), "No pharmacies found within 10 km of your current location.", android.widget.Toast.LENGTH_LONG).show();
                             } else {
                                 // This method already has the sorting logic we added earlier!
                                 showPharmacySelectionBottomSheet(imageUri, localPharmacies);
@@ -923,6 +1032,11 @@ public class HomeFragment extends Fragment {
 
             itemBinding.getRoot().setOnClickListener(v -> {
 
+                if (!isNetworkAvailable()) {
+                    Toast.makeText(requireContext(), "No internet connection. Please turn on Wi-Fi or Mobile Data and try again.", Toast.LENGTH_LONG).show();
+                    return;
+                }
+
                 int selectedId = sheetBinding.rgDeliveryMethod.getCheckedRadioButtonId();
                 String deliveryMethod = "Pickup";
 
@@ -968,21 +1082,38 @@ public class HomeFragment extends Fragment {
 
     private void savePrescriptionOrderToDatabase(String orderId, String userId, String imageUrl, String pharmacyId, String pharmacyName, String deliveryMethod) {
 
-        DeliveryAddress deliveryAddressData = new DeliveryAddress();
-
         if (deliveryMethod.equals("COD")) {
+            db.collection("users").document(userId).get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        DeliveryAddress deliveryAddressData = null;
 
-            if (user.getDeliveryAddress() != null) {
-                deliveryAddressData = user.getDeliveryAddress();
-            } else {
-                Toast.makeText(getContext(), "Please update your delivery address in your profile first!", Toast.LENGTH_LONG).show();
-                return;
-            }
+                        if (documentSnapshot.exists()) {
+                            User fetchedUser = documentSnapshot.toObject(User.class);
+                            if (fetchedUser != null) {
+                                deliveryAddressData = fetchedUser.getDeliveryAddress();
+                            }
+                        }
 
+                        if (deliveryAddressData != null) {
+
+                            createAndUploadOrder(orderId, userId, imageUrl, pharmacyId, pharmacyName, deliveryMethod, deliveryAddressData);
+                        } else {
+
+                            loadingDialog.dismiss();
+                            Toast.makeText(getContext(), "Please update your delivery address in your profile first!", android.widget.Toast.LENGTH_LONG).show();
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        loadingDialog.dismiss();
+                        android.widget.Toast.makeText(getContext(), "Failed to check address: " + e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
+                    });
         } else {
-            deliveryAddressData = null;
-        }
 
+            createAndUploadOrder(orderId, userId, imageUrl, pharmacyId, pharmacyName, deliveryMethod, null);
+        }
+    }
+
+    private void createAndUploadOrder(String orderId, String userId, String imageUrl, String pharmacyId, String pharmacyName, String deliveryMethod, DeliveryAddress address) {
         Order newOrder = Order.builder()
                 .orderId(orderId)
                 .status("Pending")
@@ -992,7 +1123,7 @@ public class HomeFragment extends Fragment {
                 .userId(userId)
                 .pharmacyId(pharmacyId)
                 .pharmacyName(pharmacyName)
-                .deliveryAddress(deliveryAddressData)
+                .deliveryAddress(address)
                 .items(new java.util.ArrayList<>())
                 .build();
 
@@ -1001,11 +1132,34 @@ public class HomeFragment extends Fragment {
                 .addOnSuccessListener(aVoid -> {
                     loadingDialog.dismiss();
                     Toast.makeText(getContext(), "Prescription Sent to " + pharmacyName + "!", Toast.LENGTH_LONG).show();
+
                 })
                 .addOnFailureListener(e -> {
                     loadingDialog.dismiss();
                     Toast.makeText(getContext(), "Database Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
+    }
+
+    private boolean isNetworkAvailable() {
+        ConnectivityManager connectivityManager =
+                (ConnectivityManager) requireContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+
+        if (connectivityManager != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Network network = connectivityManager.getActiveNetwork();
+                if (network == null) return false;
+
+                android.net.NetworkCapabilities capabilities = connectivityManager.getNetworkCapabilities(network);
+                return capabilities != null && (
+                        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET));
+            } else {
+                NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+                return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+            }
+        }
+        return false;
     }
 
     @Override

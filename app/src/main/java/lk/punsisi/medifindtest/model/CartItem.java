@@ -17,7 +17,7 @@ import lombok.NoArgsConstructor;
 public class CartItem {
 
     @PrimaryKey(autoGenerate = true)
-    private int localId; // Room needs a local ID
+    private int localId;
 
     private String medicineId;
     private String name;
@@ -28,7 +28,6 @@ public class CartItem {
 
     private boolean requiresPrescription;
 
-    // The magic flag for Offline-First!
     private boolean isSynced;
     private boolean isDeleted;
 

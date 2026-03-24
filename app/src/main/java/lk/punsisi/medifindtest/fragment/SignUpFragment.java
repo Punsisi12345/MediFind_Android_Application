@@ -90,7 +90,6 @@ public class SignUpFragment extends Fragment {
                 return;
             }
 
-            // Firebase Registration
             firebaseAuth.createUserWithEmailAndPassword(email, password)
                     .addOnCompleteListener(task -> {
                         if (task.isSuccessful()) {
@@ -107,12 +106,11 @@ public class SignUpFragment extends Fragment {
                                     .set(user)
                                     .addOnSuccessListener(unused -> {
 
-                                        // 👉 NEW: Save the role locally so the device knows who they are!
                                         saveRoleLocally("user");
 
                                         Toast.makeText(requireContext(), "Saved Successfully", Toast.LENGTH_SHORT).show();
 
-                                        // Tell the hosting Activity to switch to the Sign In tab
+
                                         ((RegistrationActivity) requireActivity()).switchToTab(0);
                                     })
                                     .addOnFailureListener(e -> {
@@ -125,7 +123,6 @@ public class SignUpFragment extends Fragment {
         });
     }
 
-    // 👉 NEW: The local storage helper method
     private void saveRoleLocally(String role) {
         SharedPreferences sharedPreferences = requireActivity().getSharedPreferences("MediFindPrefs", Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();

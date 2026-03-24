@@ -38,6 +38,7 @@ public class OrderSuccessActivity extends AppCompatActivity {
         MaterialButton btnOrders = findViewById(R.id.btn_view_orders);
         btnOrders.setOnClickListener(v -> {
             Intent intent = new Intent(this, OrderHistoryActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             startActivity(intent);
             finish();
         });

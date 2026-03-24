@@ -55,7 +55,6 @@ public class ManageOrdersAdapter extends RecyclerView.Adapter<ManageOrdersAdapte
 
         holder.tvOrderId.setText(order.getOrderId());
 
-        // Format Date
         if (order.getTimestamp() != null) {
             SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, yyyy • h:mm a", Locale.getDefault());
             holder.tvOrderDate.setText(sdf.format(order.getTimestamp()));
@@ -63,7 +62,6 @@ public class ManageOrdersAdapter extends RecyclerView.Adapter<ManageOrdersAdapte
             holder.tvOrderDate.setText("Just now");
         }
 
-        // Show the delivery method so the pharmacist knows what to expect!
         String method = order.getDeliveryMethod() != null ? order.getDeliveryMethod() : "Standard";
         holder.tvDeliveryMethod.setText(method);
         holder.tvOrderTotalPrice.setText("LKR : " + order.getGrandTotal());
@@ -74,25 +72,23 @@ public class ManageOrdersAdapter extends RecyclerView.Adapter<ManageOrdersAdapte
             holder.cardOrderPaid.setVisibility(View.GONE);
         }
 
-        // Dynamic Status Badge Colors
         String status = order.getStatus();
         holder.tvOrderStatus.setText(status);
 
         if ("Pending".equalsIgnoreCase(status)) {
-            // Orange for Pending
+
             holder.tvOrderStatus.setTextColor(Color.parseColor("#F57F17"));
             holder.cardOrderStatus.setCardBackgroundColor(Color.parseColor("#FFF8E1"));
         } else if ("Processing".equalsIgnoreCase(status)) {
-            // Blue for Processing
+
             holder.tvOrderStatus.setTextColor(Color.parseColor("#1976D2"));
             holder.cardOrderStatus.setCardBackgroundColor(Color.parseColor("#E3F2FD"));
         } else {
-            // Green for Ready/Completed
+
             holder.tvOrderStatus.setTextColor(Color.parseColor("#388E3C"));
             holder.cardOrderStatus.setCardBackgroundColor(Color.parseColor("#E8F5E9"));
         }
 
-        // Handle Click
         holder.itemView.setOnClickListener(v -> listener.onOrderClick(order));
     }
 

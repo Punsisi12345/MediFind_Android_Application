@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F8F9FA">
+    >
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
@@ -16,11 +16,11 @@
             android:id="@+id/toolbar_all_categories"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="@android:color/white"
+            android:background="@color/md_theme_surfaceBright"
             app:title="All Categories"
-            app:titleTextColor="@android:color/black"
+            app:titleTextColor="@color/md_theme_onBackground"
             app:navigationIcon="@drawable/baseline_arrow_back_24"
-            app:navigationIconTint="@android:color/black"/>
+            app:navigationIconTint="@color/md_theme_onBackground"/>
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.recyclerview.widget.RecyclerView

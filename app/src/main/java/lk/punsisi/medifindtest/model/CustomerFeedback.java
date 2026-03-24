@@ -21,7 +21,6 @@ public class CustomerFeedback {
     private float rating;
     private String comment;
 
-    // Firebase will automatically fill this with the exact server time when saved!
     @ServerTimestamp
     private Date timestamp;
 
