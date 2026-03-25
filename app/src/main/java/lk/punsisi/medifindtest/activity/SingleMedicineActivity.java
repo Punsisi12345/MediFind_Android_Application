@@ -183,7 +183,6 @@ public class SingleMedicineActivity extends AppCompatActivity {
 
 
             CartHelper.addMedicineToCart(SingleMedicineActivity.this, currentMedicine, selectedQuantity);
-            Toast.makeText(this, "item added to cart in single page successfully", Toast.LENGTH_SHORT).show();
 
         });
     }

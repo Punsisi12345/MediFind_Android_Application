@@ -8,8 +8,9 @@ import androidx.room.RoomDatabase;
 import lk.punsisi.medifindtest.model.CartItem;
 import lk.punsisi.medifindtest.model.Category;
 import lk.punsisi.medifindtest.model.Medicine;
+import lk.punsisi.medifindtest.model.Notice;
 
-@Database(entities = {Category.class, Medicine.class, CartItem.class}, version = 9, exportSchema = false)
+@Database(entities = {Category.class, Medicine.class, CartItem.class, Notice.class}, version = 10, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
 
     public abstract CategoryDao categoryDao();
@@ -17,6 +18,8 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract MedicineDao medicineDao();
 
     public abstract CartDao cartDao();
+
+    public abstract NoticeDao noticeDao();
 
     private static volatile AppDatabase INSTANCE;
 

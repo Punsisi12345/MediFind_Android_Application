@@ -18,6 +18,8 @@ import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
@@ -38,12 +40,15 @@ import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.viewpager2.widget.ViewPager2;
 
 import com.bumptech.glide.Glide;
 import com.github.mikephil.charting.charts.BarChart;
@@ -68,6 +73,8 @@ import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.tabs.TabLayout;
+import com.google.android.material.tabs.TabLayoutMediator;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.AggregateSource;
@@ -77,6 +84,7 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.QueryDocumentSnapshot;
 import com.google.firebase.storage.FirebaseStorage;
 import com.google.firebase.storage.StorageReference;
+import com.tbuonomo.viewpagerdotsindicator.DotsIndicator;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -96,6 +104,9 @@ import lk.punsisi.medifindtest.activity.MedicinesListActivity;
 import lk.punsisi.medifindtest.adapter.CategoryAdapter;
 import lk.punsisi.medifindtest.adapter.CategoryChipAdapter;
 import lk.punsisi.medifindtest.adapter.MedicineAdapter;
+import lk.punsisi.medifindtest.adapter.NoticeAdapter;
+import lk.punsisi.medifindtest.api.NoticeApiService;
+import lk.punsisi.medifindtest.api.RetrofitClient;
 import lk.punsisi.medifindtest.databinding.BottomSheetDeliveryAddressBinding;
 import lk.punsisi.medifindtest.databinding.BottomSheetPharmaciesBinding;
 import lk.punsisi.medifindtest.databinding.FragmentHomeBinding;
@@ -104,11 +115,13 @@ import lk.punsisi.medifindtest.databinding.LayoutCustomPaginationBinding;
 import lk.punsisi.medifindtest.model.Category;
 import lk.punsisi.medifindtest.model.DeliveryAddress;
 import lk.punsisi.medifindtest.model.Medicine;
+import lk.punsisi.medifindtest.model.Notice;
 import lk.punsisi.medifindtest.model.Order;
 import lk.punsisi.medifindtest.model.User;
 import lk.punsisi.medifindtest.room.AppDatabase;
 import lk.punsisi.medifindtest.room.CategoryDao;
 import lk.punsisi.medifindtest.room.MedicineDao;
+import lk.punsisi.medifindtest.room.NoticeDao;
 
 public class HomeFragment extends Fragment {
 
@@ -161,6 +174,11 @@ public class HomeFragment extends Fragment {
     private PieChart expiryChart, rxOtcChart;
 
     private User user;
+
+    //for notice
+    private ViewPager2 viewPagerNotices;
+    private TabLayout tabLayoutDots;
+    private Handler sliderHandler = new Handler(Looper.getMainLooper());
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -277,9 +295,89 @@ public class HomeFragment extends Fragment {
         });
 
 
-
         return binding.getRoot();
     }
+
+
+    @Override
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+
+        setupNoticeBanner();
+    }
+
+    private void setupNoticeBanner() {
+        viewPagerNotices = binding.viewPagerNotices;
+        DotsIndicator dotsIndicator = binding.dotsIndicator;
+        NoticeDao noticeDao = AppDatabase.getDatabase(requireContext()).noticeDao();
+
+        executorService.execute(() -> {
+            List<Notice> offlineNotices = noticeDao.getAllNoticesLocally();
+
+            if (!offlineNotices.isEmpty()) {
+                requireActivity().runOnUiThread(() -> {
+                    NoticeAdapter adapter = new NoticeAdapter(offlineNotices);
+                    viewPagerNotices.setAdapter(adapter);
+                    dotsIndicator.attachTo(viewPagerNotices);
+                    startBannerAutoScroll();
+                });
+            }
+        });
+
+        NoticeApiService service = RetrofitClient.getRetrofitInstance().create(NoticeApiService.class);
+        service.getActiveNotices().enqueue(new retrofit2.Callback<List<Notice>>() {
+            @Override
+            public void onResponse(retrofit2.Call<List<Notice>> call, retrofit2.Response<List<Notice>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    List<Notice> freshNotices = response.body();
+
+                    executorService.execute(() -> {
+                        noticeDao.deleteAllNotices();
+                        noticeDao.insertAll(freshNotices);
+                    });
+
+                    // Update UI with fresh data
+                    NoticeAdapter adapter = new NoticeAdapter(freshNotices);
+                    viewPagerNotices.setAdapter(adapter);
+                    dotsIndicator.attachTo(viewPagerNotices);
+                    startBannerAutoScroll();
+                }
+            }
+
+            @Override
+            public void onFailure(retrofit2.Call<List<Notice>> call, Throwable t) {
+                android.util.Log.e("NoticeSync", "Failed to fetch from Render: " + t.getMessage());
+            }
+        });
+    }
+
+    private void startBannerAutoScroll() {
+        sliderHandler.removeCallbacks(sliderRunnable);
+        viewPagerNotices.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
+            @Override
+            public void onPageSelected(int position) {
+                super.onPageSelected(position);
+                sliderHandler.removeCallbacks(sliderRunnable);
+                sliderHandler.postDelayed(sliderRunnable, 4000);
+            }
+        });
+    }
+
+    private Runnable sliderRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (viewPagerNotices.getAdapter() != null) {
+                int currentItem = viewPagerNotices.getCurrentItem();
+                int totalItems = viewPagerNotices.getAdapter().getItemCount();
+
+                if (currentItem < totalItems - 1) {
+                    viewPagerNotices.setCurrentItem(currentItem + 1);
+                } else {
+                    viewPagerNotices.setCurrentItem(0);
+                }
+            }
+        }
+    };
 
     private void loadDashboardMetrics() {
         FirebaseUser currentUser = auth.getCurrentUser();
@@ -1180,5 +1278,6 @@ public class HomeFragment extends Fragment {
         if (executorService != null) {
             executorService.shutdown();
         }
+        sliderHandler.removeCallbacks(sliderRunnable);
     }
 }

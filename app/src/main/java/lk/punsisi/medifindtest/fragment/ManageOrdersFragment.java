@@ -51,15 +51,14 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
     private List<Order> fullOrderList = new ArrayList<>();
     private List<Order> filteredList = new ArrayList<>();
 
-    // Master Engine Variables
-    private String currentSearchQuery = "";
-    // Filter Indexes
-    private int filterStatusIndex = 0;   // All, Pending, Processing, Ready..., Completed, Cancelled
-    private int filterDateIndex = 0;     // All Time, Today, This Week, This Month
-    private int filterTypeIndex = 0;     // All, Prescription, Cart
-    private int filterDeliveryIndex = 0; // All, Pickup, COD, Online
 
-    // Sort Index
+    private String currentSearchQuery = "";
+
+    private int filterStatusIndex = 0;
+    private int filterDateIndex = 0;
+    private int filterTypeIndex = 0;
+    private int filterDeliveryIndex = 0;
+
     private int sortOptionIndex = 0;
 
     private int currentPage = 1;
@@ -85,7 +84,6 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
         setupListeners();
         listenForLiveOrders();
 
-        // 4. Back Button Press Override
         requireActivity().getOnBackPressedDispatcher().addCallback(getViewLifecycleOwner(), new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -93,15 +91,14 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
                 int backStackCount = requireActivity().getSupportFragmentManager().getBackStackEntryCount();
 
                 if (backStackCount > 0) {
-                    // 1. It was opened from the Home Dashboard Card -> Slide back normally
+
                     requireActivity().getSupportFragmentManager().popBackStack();
                 } else {
-                    // 2. It was opened from the Side Nav -> Force the Bottom Nav to go Home!
+
                     BottomNavigationView bottomNav = requireActivity().findViewById(R.id.bottom_navigation_view);
                     if (bottomNav != null) {
                         bottomNav.setSelectedItemId(R.id.bottom_nav_home);
                     } else {
-                        // Failsafe: Just close it
                         setEnabled(false);
                         requireActivity().getOnBackPressedDispatcher().onBackPressed();
                     }
@@ -153,10 +150,9 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
             public void afterTextChanged(Editable s) {}
         });
 
-        // 👉 OPEN THE NEW ADVANCED FILTER DIALOG
+
         binding.btnFilterStatus.setOnClickListener(v -> showAdvancedFilterDialog());
 
-        // 👉 OPEN THE NEW SORT DIALOG
         binding.btnSortDate.setOnClickListener(v -> showSortDialog());
 
         binding.btnPageNext.setOnClickListener(v -> {
@@ -196,12 +192,11 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
     }
 
     private void showAdvancedFilterDialog() {
-        // Build the UI programmatically so we don't need a new XML file
+
         android.widget.LinearLayout layout = new android.widget.LinearLayout(requireContext());
         layout.setOrientation(android.widget.LinearLayout.VERTICAL);
         layout.setPadding(64, 32, 64, 0);
 
-        // 1. Status Spinner
         TextView tvStatus = new TextView(requireContext());
         tvStatus.setText("Order Status");
         tvStatus.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -210,7 +205,7 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
         spStatus.setAdapter(new android.widget.ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_dropdown_item, arrStatus));
         spStatus.setSelection(filterStatusIndex);
 
-        // 2. Date Spinner
+
         TextView tvDate = new TextView(requireContext());
         tvDate.setText("Timeframe");
         tvDate.setPadding(0, 32, 0, 0);
@@ -220,7 +215,6 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
         spDate.setAdapter(new android.widget.ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_dropdown_item, arrDate));
         spDate.setSelection(filterDateIndex);
 
-        // 3. Type Spinner
         TextView tvType = new TextView(requireContext());
         tvType.setText("Order Type");
         tvType.setPadding(0, 32, 0, 0);
@@ -230,7 +224,6 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
         spType.setAdapter(new android.widget.ArrayAdapter<>(requireContext(), android.R.layout.simple_spinner_dropdown_item, arrType));
         spType.setSelection(filterTypeIndex);
 
-        // 4. Delivery Method Spinner
         TextView tvDelivery = new TextView(requireContext());
         tvDelivery.setText("Delivery Method");
         tvDelivery.setPadding(0, 32, 0, 0);
@@ -278,7 +271,6 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
         for (Order order : fullOrderList) {
             boolean matchesSearch = order.getOrderId().toLowerCase().contains(currentSearchQuery);
 
-            // 1. Status Check
             boolean matchesStatus = false;
             String stat = order.getStatus() != null ? order.getStatus() : "";
             if (filterStatusIndex == 0) matchesStatus = true;
@@ -290,17 +282,14 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
             else if (filterStatusIndex == 6 && stat.equalsIgnoreCase("Completed")) matchesStatus = true;
             else if (filterStatusIndex == 7 && stat.equalsIgnoreCase("Cancelled")) matchesStatus = true;
 
-            // 2. Date Check
             boolean matchesDate = isDateInRange(order.getTimestamp(), filterDateIndex);
 
-            // 3. Type Check
             boolean hasItems = order.getItems() != null && !order.getItems().isEmpty();
             boolean matchesType = false;
             if (filterTypeIndex == 0) matchesType = true;
-            else if (filterTypeIndex == 1 && !hasItems) matchesType = true; // Image Only
-            else if (filterTypeIndex == 2 && hasItems) matchesType = true;  // Cart Items
+            else if (filterTypeIndex == 1 && !hasItems) matchesType = true;
+            else if (filterTypeIndex == 2 && hasItems) matchesType = true;
 
-            // 4. Delivery Method Check
             boolean matchesDelivery = false;
             String delMethod = order.getDeliveryMethod() != null ? order.getDeliveryMethod() : "";
             if (filterDeliveryIndex == 0) matchesDelivery = true;
@@ -308,26 +297,24 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
             else if (filterDeliveryIndex == 2 && delMethod.equalsIgnoreCase("COD")) matchesDelivery = true;
             else if (filterDeliveryIndex == 3 && delMethod.equalsIgnoreCase("Online")) matchesDelivery = true;
 
-            // Only add if it passes ALL filters
             if (matchesSearch && matchesStatus && matchesDate && matchesType && matchesDelivery) {
                 filteredList.add(order);
             }
         }
 
-        // 👉 THE SORTING ENGINE
         java.util.Collections.sort(filteredList, (o1, o2) -> {
-            if (sortOptionIndex == 0 || sortOptionIndex == 1) { // Sort by Date
+            if (sortOptionIndex == 0 || sortOptionIndex == 1) {
                 java.util.Date d1 = o1.getTimestamp() != null ? o1.getTimestamp() : new java.util.Date(0);
                 java.util.Date d2 = o2.getTimestamp() != null ? o2.getTimestamp() : new java.util.Date(0);
                 return sortOptionIndex == 0 ? d2.compareTo(d1) : d1.compareTo(d2);
-            } else { // Sort by Price
+            } else {
                 double p1 = o1.getGrandTotal();
                 double p2 = o2.getGrandTotal();
                 return sortOptionIndex == 2 ? Double.compare(p2, p1) : Double.compare(p1, p2);
             }
         });
 
-        // Update UI
+
         if (filteredList.isEmpty()) {
             binding.rvManageOrders.setVisibility(View.GONE);
             binding.layoutOrdersEmpty.setVisibility(View.VISIBLE);
@@ -357,31 +344,28 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
         binding.btnPageNext.setAlpha(currentPage < totalPages ? 1.0f : 0.3f);
     }
 
-    // Helper Method for Date Filtering
+
     private boolean isDateInRange(java.util.Date orderDate, int dateFilterType) {
         if (orderDate == null) return false;
-        if (dateFilterType == 0) return true; // All Time
+        if (dateFilterType == 0) return true;
 
         Calendar currentCal = Calendar.getInstance();
         Calendar orderCal = Calendar.getInstance();
         orderCal.setTime(orderDate);
 
-        if (dateFilterType == 1) { // Today
+        if (dateFilterType == 1) {
             return currentCal.get(Calendar.YEAR) == orderCal.get(Calendar.YEAR) &&
                     currentCal.get(Calendar.DAY_OF_YEAR) == orderCal.get(Calendar.DAY_OF_YEAR);
-        } else if (dateFilterType == 2) { // This Week
+        } else if (dateFilterType == 2) {
             return currentCal.get(Calendar.YEAR) == orderCal.get(Calendar.YEAR) &&
                     currentCal.get(Calendar.WEEK_OF_YEAR) == orderCal.get(Calendar.WEEK_OF_YEAR);
-        } else if (dateFilterType == 3) { // This Month
+        } else if (dateFilterType == 3) {
             return currentCal.get(Calendar.YEAR) == orderCal.get(Calendar.YEAR) &&
                     currentCal.get(Calendar.MONTH) == orderCal.get(Calendar.MONTH);
         }
         return true;
     }
 
-    // ==========================================
-    // 4. BOTTOM SHEET & ACTIONS
-    // ==========================================
     @Override
     public void onOrderClick(Order order) {
         BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
@@ -400,9 +384,7 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
         com.google.android.material.textfield.TextInputEditText etPrice = sheetView.findViewById(R.id.et_order_total_price);
         android.widget.LinearLayout layoutItemsContainer = sheetView.findViewById(R.id.layout_order_items_container);
 
-        // ==========================================
-        // 👉 1. PRESCRIPTION BUTTON LOGIC
-        // ==========================================
+
         if (order.getPrescriptionUrl() != null && !order.getPrescriptionUrl().isEmpty()) {
             btnViewPrescription.setVisibility(View.VISIBLE);
             btnViewPrescription.setOnClickListener(v -> showPrescriptionImageDialog(order.getPrescriptionUrl()));
@@ -410,13 +392,11 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
             btnViewPrescription.setVisibility(View.GONE);
         }
 
-        // ==========================================
-        // 👉 2. ITEMS LIST & PRICE INPUT LOGIC
-        // ==========================================
+
         boolean hasItems = order.getItems() != null && !order.getItems().isEmpty();
 
         if (hasItems) {
-            // SCENARIO A: Standard Cart Order (Hide price input, show items)
+
             layoutPriceInput.setVisibility(View.GONE);
             layoutItemsContainer.setVisibility(View.VISIBLE);
             layoutItemsContainer.removeAllViews();
@@ -442,7 +422,7 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
                 layoutItemsContainer.addView(tvItem);
             }
         } else {
-            // SCENARIO B: Pure Prescription Upload (Show price input, hide items)
+
             layoutItemsContainer.setVisibility(View.GONE);
             layoutPriceInput.setVisibility(View.VISIBLE);
             if (order.getGrandTotal() > 0) {
@@ -450,9 +430,7 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
             }
         }
 
-        // ==========================================
-        // 👉 3. STATUS BUTTON VISIBILITY
-        // ==========================================
+
         String deliveryMethod = order.getDeliveryMethod() != null ? order.getDeliveryMethod() : "Pickup";
         if (deliveryMethod.equalsIgnoreCase("Pickup")) {
             sheetView.findViewById(R.id.btn_status_ready_delivery).setVisibility(View.GONE);
@@ -463,7 +441,6 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
 
         String currentStatus = order.getStatus() != null ? order.getStatus() : "Pending";
 
-        // Only enable price input if it's "Processing" AND there are no cart items
         etPrice.setEnabled(currentStatus.equalsIgnoreCase("Processing") && !hasItems);
 
         if (currentStatus.equalsIgnoreCase("Processing")) toggleGroup.check(R.id.btn_status_processing);
@@ -473,7 +450,6 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
         else if (currentStatus.equalsIgnoreCase("Completed")) toggleGroup.check(R.id.btn_status_completed);
         else toggleGroup.check(R.id.btn_status_pending);
 
-        // Lock/Unlock price field dynamically
         toggleGroup.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
             if (isChecked) {
                 if (checkedId == R.id.btn_status_processing && !hasItems) {
@@ -485,9 +461,7 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
             }
         });
 
-        // ==========================================
-        // 👉 4. SAVE & BLOCKER LOGIC
-        // ==========================================
+
         btnSaveStatus.setOnClickListener(v -> {
             int checkedId = toggleGroup.getCheckedButtonId();
             String newStatus = "Pending";
@@ -568,7 +542,7 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
                 .show();
     }
 
-    // 👉 UPDATED: Now saves BOTH status and grandTotal simultaneously
+
     private void updateOrderStatusAndPrice(String orderId, String newStatus, double newPrice, boolean isPaid, String customerId) {
         if (orderId == null || orderId.isEmpty()) {
             Toast.makeText(getContext(), "Error: This order has corrupted or missing data.", Toast.LENGTH_LONG).show();
@@ -579,7 +553,7 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
                 .update(
                         "status", newStatus,
                         "grandTotal", newPrice,
-                        "paid", isPaid // Push the payment status!
+                        "paid", isPaid
                 )
                 .addOnSuccessListener(aVoid -> {
                     if (getContext() != null) {
@@ -604,7 +578,7 @@ public class ManageOrdersFragment extends Fragment implements ManageOrdersAdapte
     }
 
     private void sendPushNotificationToUser(String userId, String title, String message) {
-        // TODO: FCM Push Notification integration
+        // TODO:
     }
 
     @Override

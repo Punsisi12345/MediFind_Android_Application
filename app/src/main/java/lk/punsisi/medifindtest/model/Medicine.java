@@ -36,6 +36,8 @@ public class Medicine {
 
     private String pharmacistId;
     private String pharmacyName;
+
+    @Builder.Default
     private String source = "pharmacist";
 
     private long lastUpdated;
