@@ -1,16 +1,13 @@
 # MediFind: Full-Stack Healthcare & Pharmacy Solution
 
 <p align="center">
-  <img src="YOUR_GITHUB_USER/YOUR_ANDROID_REPO/raw/master/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="128" alt="MediFind Logo" />
+  <img src="https://raw.githubusercontent.com/Punsisi12345/MediFind_Android_Application/master/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="128" alt="MediFind Logo" />
 </p>
 
 ## 🚀 Experience it Live
 
-* **Public Download (Android APK):** [Download MediFind v1.0.0 (GitHub Releases)](YOUR_GITHUB_ANDROID_RELEASES_URL)
-* **Admin Web Dashboard:** [medifind-admin.web.app](YOUR_FIREBASE_HOSTING_URL)
-* **Backend API Status:** <img src="https://api.render.com/deploy/srv-YOUR_SERVICE_ID/status" alt="Render Build Status">
-
----
+* **Public Download (Android APK):** [Download Latest MediFind Release](https://github.com/Punsisi12345/MediFind_Android_Application/releases/latest)
+* **Admin Web Dashboard:** [medifind-admin.web.app](YOUR_FIREBASE_HOSTING_URL) * **Backend API Status:** <img src="https://api.render.com/deploy/srv-YOUR_SERVICE_ID/status" alt="Render Build Status"> ---
 
 ## 📖 Introduction
 
@@ -24,7 +21,7 @@ MediFind goes "way ahead" of a standard university project by implementing an in
 
 <p align="center">
   <img src="https://i.imgur.com/your-architecture-diagram.png" width="80%"/> 
-  </p>
+</p>
 
 ### Key Architectural Flows:
 
@@ -59,4 +56,11 @@ This Android application is part of a larger, integrated system:
 
 **Punsisi Upul Ranga**
 * [GitHub Portal](https://github.com/Punsisi12345)
-* [Connect on LinkedIn](YOUR_LINKEDIN_URL)
+* [Connect on LinkedIn](YOUR_LINKEDIN_URL) ```
+
+---
+
+### How to get a real Architecture Diagram link:
+If you want to include a diagram where `https://i.imgur.com/your-architecture-diagram.png` is right now, the easiest way is to draw a quick flowchart (using a free tool like Excalidraw or draw.io), take a screenshot, and drag that image directly into a GitHub issue comment box. GitHub will automatically upload it and generate a secure `https://user-images.githubusercontent.com/...` link. You can just copy that link and paste it into your `README.md`!
+
+Would you like me to guide you on how to grab that "Live Status" badge from your Render dashboard so your GitHub page shows a cool green "Passing" icon when your Spring Boot server is online?
