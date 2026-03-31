@@ -1,7 +1,7 @@
 # MediFind: Full-Stack Healthcare & Pharmacy Solution
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Punsisi12345/MediFind_Android_Application/master/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" width="128" alt="MediFind Logo" />
+  <img src="https://ibb.co/hJhvn3KR" width="128" alt="MediFind Logo" />
 </p>
 
 ## 🚀 Experience it Live
