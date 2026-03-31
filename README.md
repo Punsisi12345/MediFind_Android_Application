@@ -1,7 +1,7 @@
 # MediFind: Full-Stack Healthcare & Pharmacy Solution
 
 <p align="center">
-  <img src="https://ibb.co/hJhvn3KR" width="128" alt="MediFind Logo" />
+ <a href="https://ibb.co/hJhvn3KR"><img src="https://i.ibb.co/LXbfqVCz/Whats-App-Image-2026-03-31-at-19-41-55.jpg" alt="Whats-App-Image-2026-03-31-at-19-41-55" border="0" /></a>
 </p>
 
 ## 🚀 Experience it Live
